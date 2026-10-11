@@ -1,0 +1,9 @@
+{
+  "name": "flodljus-api",
+  "version": "1.0.0",
+  "private": true,
+  "description": "Molnsparning för Flodljus Manager (Postgres)",
+  "main": "server.js",
+  "scripts": { "start": "node server.js" },
+  "dependencies": { "pg": "^8.13.1" }
+}

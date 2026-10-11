@@ -1,0 +1,30 @@
+# Tillägg för Flodljus Manager – klistra in i C:\Users\peter\Kupp Server\docker-compose.yml
+# (under den befintliga raden "services:"). Se INSTALLERA.md.
+#
+# Förutsätter att din Postgres-tjänst heter "db" och att lösenord m.m. finns i .env-filen
+# bredvid docker-compose.yml (POSTGRES_USER, POSTGRES_PASSWORD, POSTGRES_DB).
+# Heter variablerna något annat hos dig: byt namnen nedan så att de matchar db-tjänsten.
+
+services:
+  flodljus-api:
+    build: ./flodljus-api
+    container_name: flodljus-api
+    restart: unless-stopped
+    environment:
+      PGHOST: db
+      PGPORT: "5432"
+      PGUSER: ${POSTGRES_USER}
+      PGPASSWORD: ${POSTGRES_PASSWORD}
+      PGDATABASE: ${POSTGRES_DB}
+      MAX_SAVE_MB: "5"
+    depends_on:
+      - db
+    # Ingen "ports:" – API:et nås bara via nginx (/api/), inte direkt utifrån.
+
+  # Din befintliga nginx-tjänst: lägg till volymraderna och depends_on (behåll det som redan finns).
+  nginx:
+    volumes:
+      - ./flodljus-spel:/usr/share/nginx/html:ro
+      - ./nginx/flodljus.conf:/etc/nginx/conf.d/default.conf:ro
+    depends_on:
+      - flodljus-api

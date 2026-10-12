@@ -170,6 +170,7 @@ function hydrate() {
   C.highlights = C.highlights || []; C.loans = C.loans || [];
   if (C.cup && C.cup.v !== 2) C.cup = null; // Supercupen ersätts av Ligacupen
   if (fixDuplicateNames()) saveCareer();
+  if (fixStadiums()) saveCareer();
   // Balansändring (v27): supportrarna hade vuxit utan gräns – sätt dem till en rimlig nivå för divisionen
   if (!C.bal27) {
     C.bal27 = true;

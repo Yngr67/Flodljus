@@ -131,22 +131,29 @@ ACTIONS.mplayer = el => {
 
 // ===== Arena =====
 function stadiumSvg(s) {
-  const main = Math.min(70, 14 + (s.seated + s.covered + s.vip) / 40), ends = Math.min(60, s.standing / 45);
-  const W = 520, H = 300, px = 110, py = 110, pw = 300, ph = 150;
-  const roofW = s.covered ? (s.covered / Math.max(1, s.seated + s.covered)) * pw + 40 : 0;
+  const seatsAll = s.seated + s.covered + s.vip;
+  const main = Math.min(78, 14 + Math.sqrt(seatsAll) * 0.75), ends = Math.min(70, Math.sqrt(s.standing) * 0.9);
+  const W = 560, H = 330, px = 130, py = 130, pw = 300, ph = 150;
+  const roofW = s.covered ? (s.covered / Math.max(1, s.seated + s.covered)) * (pw + 40) : 0;
+  const col = userTeam().kit.shirt;
   const lights = [[px - ends - 18, py - main - 10], [px + pw + ends + 18, py - main - 10], [px - ends - 18, py + ph + 22], [px + pw + ends + 18, py + ph + 22]].slice(0, s.lights ? (s.lights >= 3 ? 4 : 2) : 0);
-  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:640px;height:auto" role="img" aria-label="Arenan uppifrån">
+  const big = seatsAll + s.standing > 9000; // hörnläktare när arenan blir stor
+  return `<svg viewBox="0 0 ${W} ${H}" style="width:100%;max-width:680px;height:auto" role="img" aria-label="Arenan uppifrån">
+    ${s.tier ? `<rect x="${px - 34}" y="${py - main - 26 * s.tier}" width="${pw + 68}" height="${26 * s.tier}" fill="#46558e" rx="6"/><rect x="${px - 34}" y="${py - main - 4}" width="${pw + 68}" height="4" fill="${col}"/>` : ''}
+    ${big ? `<path d="M${px - ends} ${py} L${px - 20} ${py - main} L${px} ${py} Z" fill="#3a4f8c"/><path d="M${px + pw + ends} ${py} L${px + pw + 20} ${py - main} L${px + pw} ${py} Z" fill="#3a4f8c"/>` : ''}
     <rect x="${px - ends}" y="${py}" width="${ends}" height="${ph}" fill="#3a4f8c" rx="4"/>
     <rect x="${px + pw}" y="${py}" width="${ends}" height="${ph}" fill="#3a4f8c" rx="4"/>
     <rect x="${px - 20}" y="${py - main}" width="${pw + 40}" height="${main}" fill="#5b6aa0" rx="4"/>
     ${roofW ? `<rect x="${px + pw / 2 - roofW / 2}" y="${py - main}" width="${roofW}" height="${main}" fill="#8a96c4" opacity=".75" rx="4"/>` : ''}
-    ${s.vip ? `<rect x="${px + pw / 2 - Math.min(pw, 20 + s.vip) / 2}" y="${py - main - 10}" width="${Math.min(pw, 20 + s.vip)}" height="9" fill="#ffcf7a" rx="2"/>` : ''}
+    <rect x="${px - 20}" y="${py - 4}" width="${pw + 40}" height="4" fill="${col}"/>
+    ${s.vip ? `<rect x="${px + pw / 2 - Math.min(pw, 20 + s.vip) / 2}" y="${py - main + 2}" width="${Math.min(pw, 20 + s.vip)}" height="8" fill="#ffcf7a" rx="2"/>` : ''}
+    ${s.screen ? `<rect x="${px + pw / 2 - 30}" y="${py - main - 26 * (s.tier || 0) - 18}" width="60" height="14" fill="#0b1838" stroke="#ffd66b" rx="2"/><text x="${px + pw / 2}" y="${py - main - 26 * (s.tier || 0) - 8}" text-anchor="middle" fill="#ffd66b" font-size="9" font-family="Barlow, sans-serif">STORBILD</text>` : ''}
     <rect x="${px}" y="${py}" width="${pw}" height="${ph}" fill="#2f7f3b" stroke="#fff" stroke-opacity=".6"/>
     <line x1="${px + pw / 2}" y1="${py}" x2="${px + pw / 2}" y2="${py + ph}" stroke="#fff" stroke-opacity=".6"/>
     <circle cx="${px + pw / 2}" cy="${py + ph / 2}" r="22" fill="none" stroke="#fff" stroke-opacity=".6"/>
     ${lights.map(([x, y]) => `<circle cx="${x}" cy="${y}" r="7" fill="#fff3cf"/><circle cx="${x}" cy="${y}" r="16" fill="#fff3cf" opacity=".18"/>`).join('')}
-    <text x="${px + pw / 2}" y="${py - main / 2 + 5}" text-anchor="middle" fill="#fff" font-size="14" font-family="Barlow, sans-serif">${(s.seated + s.covered + s.vip).toLocaleString('sv-SE')} sittplatser</text>
-    <text x="${px + pw / 2}" y="${py + ph + 28}" text-anchor="middle" fill="#97a3c6" font-size="13" font-family="Barlow, sans-serif">Ståplats på kortsidorna: ${s.standing.toLocaleString('sv-SE')}</text>
+    <text x="${px + pw / 2}" y="${py - main / 2 + 5}" text-anchor="middle" fill="#fff" font-size="14" font-family="Barlow, sans-serif">${seatsAll.toLocaleString('sv-SE')} sittplatser${s.tier ? ' · två våningar' : ''}</text>
+    <text x="${px + pw / 2}" y="${py + ph + 28}" text-anchor="middle" fill="#97a3c6" font-size="13" font-family="Barlow, sans-serif">Ståplats på kortsidorna: ${s.standing.toLocaleString('sv-SE')} · totalt ${capacity(s).toLocaleString('sv-SE')}</text>
   </svg>`;
 }
 SCREENS.arena = () => {
@@ -169,13 +176,17 @@ SCREENS.arena = () => {
   </div>
   <h2 style="font-size:30px">Bygg ut</h2>
   <div class="grid">${Object.entries(BUILDS).map(([k, b]) => {
-    const running = cl.builds.find(x => x.key === k), ok = !b.ok || b.ok(s, cl.fac), cost = buildCost(k);
-    const cur = k === 'lights' ? `Nivå ${s.lights}/3` : k === 'training' ? `Nivå ${cl.fac.training}/5` : k === 'youth' ? `Nivå ${cl.fac.youth}/5` : k === 'vip' ? `${s.vip} platser` : k === 'covered' ? `${s.covered} under tak` : `${s[k].toLocaleString('sv-SE')} platser`;
+    const running = cl.builds.find(x => x.key === k), locked = buildLocked(k), ok = !locked && (!b.ok || b.ok(s, cl.fac)), cost = buildCost(k);
+    const fin = finance(), after = cl.cash - cost, pb = staffLvl('finance') ? buildPayback(k) : null;
+    const verdict = after >= fin.buffer ? ['good', '✅ Ryms i budgeten'] : after >= 0 ? ['', '⚠️ Går, men kassan blir tunn'] : ['bad', '❌ Inte råd just nu'];
+    const cur = k === 'lights' ? `Nivå ${s.lights}/3` : k === 'training' ? `Nivå ${cl.fac.training}/5` : k === 'youth' ? `Nivå ${cl.fac.youth}/5` : k === 'vip' ? `${s.vip} platser` : k === 'covered' ? `${s.covered} under tak` : k === 'screen' ? (s.screen ? 'Finns' : 'Saknas') : k === 'tier' ? `${s.tier || 0} av 2` : `${s[k].toLocaleString('sv-SE')} platser`;
     return `<div class="card"><div class="spread"><h2 style="font-size:24px">${b.name}</h2><span class="muted">${cur}</span></div>
-      <p class="muted" style="margin:0">${b.desc}</p>
-      <div class="spread"><b>${ok ? money(cost) : 'Max'}</b><span class="muted">${buildWeeks(k)} ${buildWeeks(k) === 1 ? 'vecka' : 'veckor'}</span></div>
+      <p class="muted" style="margin:0">${typeof b.desc === 'function' ? b.desc() : b.desc}</p>
+      <div class="spread"><b>${locked ? `🔒 Division ${buildDiv(k)}` : ok ? money(cost) : 'Max'}</b><span class="muted">${buildWeeks(k)} ${buildWeeks(k) === 1 ? 'vecka' : 'veckor'}</span></div>
+      ${ok && !running ? `<div style="font-size:13px"><span class="${verdict[0]}">${verdict[1]}</span> <span class="muted">· kassa efter bygget ${money(after)}</span></div>` : ''}
+      ${ok && !running && pb != null ? `<div style="font-size:13px">💼 ${pb === Infinity ? 'Ger inga extra biljettpengar just nu – arenan fylls inte.' : `Betalar sig på ungefär <b>${pb < 1 ? 'under en säsong' : Math.round(pb * 10) / 10 + ' säsonger'}</b>.`}</div>` : ''}
       ${running ? `<div class="tag sale" style="align-self:flex-start">Pågår · klart om ${running.left} v</div>`
-        : `<button class="btn${ok && cl.cash >= cost ? ' primary' : ''}" type="button" data-act="build" data-k="${k}"${!ok || cl.cash < cost ? ' disabled' : ''}>${ok ? 'Bygg' : 'Fullt utbyggt'}</button>`}
+        : `<button class="btn${ok && cl.cash >= cost ? ' primary' : ''}" type="button" data-act="build" data-k="${k}"${!ok || cl.cash < cost ? ' disabled' : ''}>${locked ? 'Låst' : ok ? 'Bygg' : 'Fullt utbyggt'}</button>`}
     </div>`;
   }).join('')}</div>`;
 };
@@ -224,12 +235,38 @@ ACTIONS.fireYes = el => { closeModal(); act(fireStaff(el.dataset.k), 'Uppsagd.')
 
 // ===== Ekonomi =====
 const LEDGER_NAME = { staff: 'Personallöner', hire: 'Värvning av personal', cup: 'Ligacupen', tickets: 'Biljetter', sponsors: 'Sponsorer', tv: 'TV-pengar', merch: 'Souvenirer', wages: 'Löner', upkeep: 'Drift av arena och anläggningar', transfers: 'Spelarköp och -försäljningar', build: 'Byggen' };
+function financeCard() {
+  const f = finance(), cl = C.club, fl = staffLvl('finance');
+  const tile = (label, val, cls, sub) => `<div><div class="muted" style="font-size:12px">${label}</div><b class="${cls || ''}" style="font-size:20px">${val}</b>${sub ? `<div class="muted" style="font-size:12px">${sub}</div>` : ''}</div>`;
+  const tips = [];
+  if (fl) {
+    if (f.net < 0) tips.push(['bad', `Ni förlorar ${money(-f.net)} i veckan. ${isFinite(f.runway) ? `Kassan räcker i ungefär ${f.runway} veckor.` : ''} Sälj en dyr reserv eller sänk kostnaderna.`]);
+    if (f.wageShare > 0.75) tips.push(['bad', `Lönerna tar ${Math.round(f.wageShare * 100)} % av intäkterna. Över 70 % är riskabelt.`]);
+    else if (f.wageShare < 0.45 && f.free > 0) tips.push(['good', `Lönerna tar bara ${Math.round(f.wageShare * 100)} % av intäkterna – det finns utrymme att förstärka truppen.`]);
+    const est = attendance(userTeam(), C.teams.find(x => !x.user) || userTeam());
+    if (est.cap && est.total >= est.cap * 0.97) tips.push(['good', `Arenan är fullsatt (${est.total.toLocaleString('sv-SE')} av ${est.cap.toLocaleString('sv-SE')}). Utbyggnad eller högre biljettpris lönar sig.`]);
+    else if (est.cap && est.total < est.cap * 0.6) tips.push(['', `Bara ${Math.round(est.total / est.cap * 100)} % av platserna säljs. Bygg inte ut läktarna nu – sänk hellre biljettpriset.`]);
+    const pbs = Object.keys(BUILDS).filter(k => !buildLocked(k) && (!BUILDS[k].ok || BUILDS[k].ok(cl.stadium, cl.fac))).map(k => [k, buildPayback(k)]).filter(([, v]) => v != null && isFinite(v)).sort((a, b) => a[1] - b[1]);
+    if (pbs.length && pbs[0][1] < 4) tips.push(['good', `Bästa bygget just nu: <b>${BUILDS[pbs[0][0]].name}</b> – betalar sig på ungefär ${pbs[0][1] < 1 ? 'under en säsong' : Math.round(pbs[0][1] * 10) / 10 + ' säsonger'}.`]);
+    if (!tips.length) tips.push(['good', 'Ekonomin är stabil. Inget att anmärka på just nu.']);
+  }
+  return `<div class="card" style="margin-bottom:12px"><h3>📊 Översikt</h3>
+    <div class="grid" style="grid-template-columns:repeat(auto-fit,minmax(150px,1fr));gap:12px">
+      ${tile('Netto per vecka (normalvecka)', money(f.net), f.net < 0 ? 'bad' : 'good', `Intäkter ${money(f.income)} · kostnader ${money(f.costs)}`)}
+      ${tile('Kassan räcker', f.net >= 0 ? 'Går med vinst' : isFinite(f.runway) ? `${f.runway} veckor` : '–', f.net >= 0 ? 'good' : f.runway < 10 ? 'bad' : '')}
+      ${tile('Prognos vid säsongens slut', money(f.endCash), f.endCash < 0 ? 'bad' : '', `${f.left} veckor kvar`)}
+      ${tile('Kan satsas på byggen/värvningar', money(f.free), f.free > 0 ? 'good' : 'bad', `Behåller ${money(f.buffer)} i buffert (8 veckors kostnader)`)}
+    </div>
+    ${fl ? `<div><div class="muted" style="font-size:13px">💼 Ekonomichefens råd</div><ul class="news">${tips.map(([c, t]) => `<li class="${c}">${t}</li>`).join('')}</ul></div>` : `<p class="muted" style="margin:0;font-size:13px">Anställ en 💼 ekonomichef under Personal för råd och återbetalningstider på byggen.</p>`}
+  </div>`;
+}
 SCREENS.economy = () => {
   const wb = weeklyBudget(), t = userTeam(), last = C.lastMatch && C.lastMatch.ledger;
   const est = attendance(t, C.teams.find(x => !x.user));
   const line = (k, v) => `<tr><td>${LEDGER_NAME[k] || k}</td><td class="num ${v < 0 ? 'bad' : 'good'}">${money(v)}</td></tr>`;
   const wages = t.players.slice().sort((a, b) => playerWage(b) - playerWage(a));
   return `<div class="spread"><h2 style="font-size:40px">Ekonomi</h2><span>Kassa <b class="${C.club.cash < 0 ? 'bad' : ''}">${money(C.club.cash)}</b></span></div>
+  ${financeCard()}
   <div class="grid">
     <div class="card"><h3>Förra veckan</h3>
       ${last ? `<table><tbody>${Object.entries(last).map(([k, v]) => line(k, v)).join('')}<tr><td><b>Netto</b></td><td class="num"><b class="${sumLedger(last) < 0 ? 'bad' : 'good'}">${money(sumLedger(last))}</b></td></tr></tbody></table>` : '<p class="muted" style="margin:0">Ingen match spelad ännu.</p>'}

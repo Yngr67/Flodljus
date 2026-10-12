@@ -66,15 +66,22 @@ const PRICE_LEVEL = { low: { mult: 0.8, demand: 1.18, name: 'Lågt' }, normal: {
 const INTENSITY = { light: { gain: 0.7, inj: 0.7, name: 'Lätt' }, normal: { gain: 1, inj: 1, name: 'Normal' }, hard: { gain: 1.3, inj: 1.6, name: 'Hård' } };
 const FOCUS = { all: 'Allround', gk: 'Målvakt', def: 'Försvar', pas: 'Passning', sho: 'Avslut', spd: 'Snabbhet', sta: 'Kondition' };
 const TACTIC_NAME = { def: 'Defensiv', bal: 'Balanserad', off: 'Offensiv' };
+// Utbyggnaderna växer med divisionen: i division 6 bygger man 250 platser åt gången, i division 1 ungefär 1 000.
+const buildScale = () => (C ? 1 + (lowestDiv() - C.div) * 0.6 : 1);
+const seats = n => Math.round(n * buildScale() / 50) * 50;
 const BUILDS = {
-  standing: { name: 'Ståplatsläktare', desc: '+250 ståplatser på kortsidorna', cost: () => 30000, weeks: 2, apply: s => { s.standing += 250; } },
-  seated: { name: 'Sittplatsläktare', desc: '+250 sittplatser på långsidan', cost: () => 70000, weeks: 3, apply: s => { s.seated += 250; } },
-  covered: { name: 'Tak över sittplatser', desc: '250 sittplatser får tak (dyrare biljetter)', cost: () => 90000, weeks: 3, apply: s => { s.seated -= 250; s.covered += 250; }, ok: s => s.seated >= 250 },
-  vip: { name: 'VIP-loge', desc: '+20 VIP-platser högst upp på läktaren', cost: () => 120000, weeks: 4, apply: s => { s.vip += 20; } },
-  lights: { name: 'Strålkastare', desc: 'Starkare ljus, fler sponsorer', cost: s => 120000 * (s.lights + 1), weeks: 2, apply: s => { s.lights += 1; }, ok: s => s.lights < 3 },
-  training: { name: 'Träningsanläggning', desc: 'Snabbare utveckling på träningen', cost: (s, f) => 100000 * f.training, weeks: 3, fac: true, apply: (s, f) => { f.training += 1; }, ok: (s, f) => f.training < 5 },
-  youth: { name: 'Ungdomsakademi', desc: 'Bättre talanger varje säsong', cost: (s, f) => 80000 * f.youth, weeks: 3, fac: true, apply: (s, f) => { f.youth += 1; }, ok: (s, f) => f.youth < 5 },
+  standing: { name: 'Ståplatsläktare', desc: () => `+${seats(250).toLocaleString('sv-SE')} ståplatser på kortsidorna`, cost: () => Math.round(30000 * buildScale() * 1.05), weeks: 2, apply: s => { s.standing += seats(250); } },
+  seated: { name: 'Sittplatsläktare', desc: () => `+${seats(250).toLocaleString('sv-SE')} sittplatser på långsidan`, cost: () => Math.round(70000 * buildScale() * 1.05), weeks: 3, apply: s => { s.seated += seats(250); } },
+  covered: { name: 'Tak över sittplatser', desc: () => `${seats(250).toLocaleString('sv-SE')} sittplatser får tak (dyrare biljetter)`, cost: () => Math.round(90000 * buildScale() * 1.05), weeks: 3, apply: s => { const n = Math.min(s.seated, seats(250)); s.seated -= n; s.covered += n; }, ok: s => s.seated >= 50 },
+  vip: { name: 'VIP-loge', desc: () => `+${Math.round(20 * buildScale())} VIP-platser högst upp på läktaren`, cost: () => Math.round(120000 * buildScale()), weeks: 4, apply: s => { s.vip += Math.round(20 * buildScale()); } },
+  lights: { name: 'Strålkastare', desc: () => 'Starkare ljus, fler sponsorer', cost: s => 120000 * (s.lights + 1), weeks: 2, apply: s => { s.lights += 1; }, ok: s => s.lights < 3 },
+  screen: { name: 'Storbildsskärm', minDiv: 4, desc: () => 'Stor skärm på läktartaket med resultat och repriser. Fler åskådare (+5 %) och gladare supportrar.', cost: () => 350000, weeks: 4, apply: s => { s.screen = 1; }, ok: s => !s.screen },
+  tier: { name: 'Övre läktare', minDiv: 3, desc: () => `En andra våning på långsidan: +${seats(1000).toLocaleString('sv-SE')} sittplatser`, cost: () => Math.round(260000 * buildScale()), weeks: 8, apply: s => { s.seated += seats(1000); s.tier = (s.tier || 0) + 1; }, ok: s => (s.tier || 0) < 2 && s.seated + s.covered >= 1500 },
+  training: { name: 'Träningsanläggning', desc: () => 'Snabbare utveckling på träningen', cost: (s, f) => 100000 * f.training, weeks: 3, fac: true, apply: (s, f) => { f.training += 1; }, ok: (s, f) => f.training < 5 },
+  youth: { name: 'Ungdomsakademi', desc: () => 'Bättre talanger varje säsong', cost: (s, f) => 80000 * f.youth, weeks: 3, fac: true, apply: (s, f) => { f.youth += 1; }, ok: (s, f) => f.youth < 5 },
 };
+const buildDiv = k => (BUILDS[k].minDiv ? (DIVS.length === 6 ? BUILDS[k].minDiv : Math.max(1, BUILDS[k].minDiv - 2)) : 99);
+const buildLocked = k => BUILDS[k].minDiv && C.div > buildDiv(k);
 
 // ===== Personal =====
 // Låses upp när klubben klättrar. Nivå ★ till ★★★: högsta nivån beror på divisionen (div 4: ★, div 3: ★★, div 2–1: ★★★).
@@ -88,6 +95,7 @@ const STAFF = {
   youthHead: { icon: '🎓', name: 'Akademichef', minDiv: 4, minDiv6: 5, pricey: true, auto: 'loan', autoText: 'Låna ut juniorer som inte får speltid automatiskt inför varje säsong', desc: l => `Större chans till stjärnor i akademin${l >= 3 ? ' och en extra junior varje år' : ''}.` },
   marketing: { icon: '📣', name: 'Marknadschef', minDiv: 3, minDiv6: 4, pricey: true, desc: l => `+${l * 8} % sponsorpengar, +${l * 10} % souvenirer och fler åskådare.` },
   director: { icon: '🧑‍💼', name: 'Sportchef', minDiv: 3, minDiv6: 4, pricey: true, auto: 'sell', autoText: 'Sälj spelare som ligger ute till försäljning automatiskt när ett bra bud kommer', desc: l => `Klubbar bjuder ${l * 5} % mer på dina spelare, och fynd på transfermarknaden markeras med ⭐.` },
+  finance: { icon: '💼', name: 'Ekonomichef', minDiv: 4, minDiv6: 6, desc: l => `Ger råd om ekonomin och räknar ut om byggen lönar sig. Sänker driftkostnaderna ${l * 5} %.` },
   analyst: { icon: '🧠', name: 'Matchanalytiker', minDiv: 2, minDiv6: 3, pricey: true, desc: l => `Laget presterar ${l * 2} % bättre i matcherna, och du får veta motståndarens farligaste spelare.` },
 };
 const staffWage = (k, l) => Math.round(STAFF_WAGE[l] * (STAFF[k].pricey ? 1.8 : 1));
@@ -266,11 +274,20 @@ function altKit(k) {
     : { shirt: '#1b1f2e', shorts: '#1b1f2e', socks: '#1b1f2e', num: '#ffffff', stripes: null };
 }
 function genStadium(div) {
-  const cap = { 4: 1600, 3: 3800, 2: 8000, 1: 15000 }[div] * rnd(0.7, 1.3);
+  // Datorlagens arenor: större högre upp (gäller både 4- och 6-divisionsformatet)
+  const six = DIVS.length === 6, d = six ? div : div + (div >= 3 ? 2 : div === 2 ? 1 : 0);
+  const cap = ({ 1: 15000, 2: 8000, 3: 4500, 4: 2600, 5: 1500, 6: 900 }[d] || 900) * rnd(0.7, 1.3);
   return {
     standing: Math.round(cap * 0.55 / 50) * 50, seated: Math.round(cap * 0.35 / 50) * 50,
-    covered: Math.round(cap * (div <= 2 ? 0.1 : 0.03) / 50) * 50, vip: div <= 2 ? 40 : 0, lights: { 4: 1, 3: 2, 2: 2, 1: 3 }[div],
+    covered: Math.round(cap * (d <= 2 ? 0.1 : 0.03) / 50) * 50, vip: d <= 2 ? 40 : 0, lights: d <= 1 ? 3 : d <= 3 ? 2 : 1,
+    tier: d === 1 ? 1 : 0, screen: d <= 2 ? 1 : 0,
   };
+}
+// Reparera arenor som saknar giltig kapacitet (fel i äldre versioner för division 5–6)
+function fixStadiums() {
+  let n = 0;
+  for (const d of DIVS) for (const t of divGroup(d).teams) if (!t.user && !(capacity(t.stadium) > 0)) { t.stadium = genStadium(d); n++; }
+  return n;
 }
 function genTeam(div, usedNames) {
   let name;
@@ -786,6 +803,35 @@ function makeOffers(t) {
   }
   if (C.offers.length) news(`Du har fått ${C.offers.length} bud på dina spelare. Se Transfer.`, 'good');
 }
+// ===== Ekonomisk prognos =====
+// Ett vanligt veckonetto: intäkter (biljetter ungefär varannan vecka) minus löner, personal och drift.
+function finance() {
+  const wb = weeklyBudget(), t = userTeam(), est = attendance(t, C.teams.find(x => !x.user) || t);
+  const tickets = Math.round((est.income || 0) / 2);
+  const income = wb.sponsors + wb.tv + wb.merch + tickets, costs = -(wb.wages + (wb.staff || 0) + wb.upkeep);
+  const net = income - costs;
+  const left = Math.max(0, C.fixtures.length - C.round) + (C.pre || 0);
+  const buffer = costs * 8; // åtta veckors kostnader som säkerhetsmarginal
+  const runway = net < 0 ? Math.floor(C.club.cash / -net) : Infinity;
+  const endCash = C.club.cash + net * left;
+  const free = Math.max(0, Math.min(C.club.cash, endCash) - buffer);
+  return { income, costs, net, tickets, left, buffer, runway, endCash, free, wageShare: income ? -wb.wages / income : 1 };
+}
+// Ungefärlig återbetalningstid (säsonger) för ett bygge, eller null om det inte ger pengar direkt
+function buildPayback(key) {
+  const cl = C.club, s = cl.stadium, pl = PRICE_LEVEL[cl.ticket], homeGames = C.fixtures.length / 2;
+  const demand = (cl.fans * (0.45 + cl.mood / 110) + 300 * DIV_MULT[C.div]) * pl.demand * (1 + staffLvl('marketing') * 0.05) * (s.screen ? 1.05 : 1);
+  const unmet = Math.max(0, demand - capacity(s));
+  let perSeason = 0;
+  if (key === 'standing') perSeason = Math.min(unmet, seats(250)) * TICKET.standing * pl.mult * homeGames;
+  else if (key === 'seated' || key === 'tier') perSeason = Math.min(unmet, key === 'tier' ? seats(1000) : seats(250)) * TICKET.seated * pl.mult * homeGames;
+  else if (key === 'covered') perSeason = Math.min(s.seated, seats(250)) * (TICKET.covered - TICKET.seated) * pl.mult * homeGames * Math.min(1, demand / capacity(s));
+  else if (key === 'vip') perSeason = Math.round(20 * buildScale()) * TICKET.vip * pl.mult * homeGames * 0.8;
+  else if (key === 'lights') perSeason = weeklyBudget().sponsors * 0.05 / (1 + s.lights * 0.05) * C.fixtures.length;
+  else if (key === 'screen') perSeason = Math.min(unmet + capacity(s) * 0.05, capacity(s) * 0.05) * TICKET.seated * pl.mult * homeGames;
+  else return null;
+  return perSeason > 0 ? buildCost(key) / perSeason : Infinity;
+}
 // Sportchefens fyndmarkering: priset är lågt jämfört med vad spelaren är värd för din klubb (nivå och potential)
 function isBargain(p) {
   const dl = staffLvl('director'); if (!dl || p.price == null) return false;
@@ -823,7 +869,7 @@ function attendance(team, opp) {
   if (!team.user) { const cap = capacity(s); const n = Math.round(cap * rnd(0.5, 0.95)); return { total: n, cap, sec: null }; }
   const cl = C.club, pl = PRICE_LEVEL[cl.ticket];
   const oppBoost = 1 + Math.max(0, 4 - table().findIndex(r => r.t === opp)) * 0.05;
-  let demand = (cl.fans * (0.45 + cl.mood / 110) + 300 * DIV_MULT[C.div]) * pl.demand * oppBoost * rnd(0.9, 1.1) * (1 + staffLvl('marketing') * 0.05);
+  let demand = (cl.fans * (0.45 + cl.mood / 110) + 300 * DIV_MULT[C.div]) * pl.demand * oppBoost * rnd(0.9, 1.1) * (1 + staffLvl('marketing') * 0.05) * (s.screen ? 1.05 : 1);
   const share = { vip: 0.03, covered: 0.22, seated: 0.3, standing: 0.45 };
   const sec = {}; let spill = 0, total = 0, income = 0;
   for (const k of ['vip', 'covered', 'seated', 'standing']) {
@@ -836,8 +882,9 @@ function arenaCfg(team, att) {
   const s = team.stadium, cap = capacity(s);
   const boards = [[team.name.toUpperCase(), team.kit.shirt, team.kit.num], ...DEFAULT_BOARDS];
   return {
-    seed: team.id * 97 + 3, mainRows: 2 + (s.seated + s.covered + s.vip) / 220, endRows: s.standing / 260,
+    seed: team.id * 97 + 3, mainRows: 2 + Math.sqrt(s.seated + s.covered + s.vip) / 7, endRows: Math.sqrt(s.standing) / 7,
     roof: s.covered > 0, vip: Math.round(s.vip / 20), lights: s.lights, fill: cap ? att.total / cap : 0, boards,
+    tier: s.tier || 0, screen: !!s.screen, color: team.kit.shirt,
   };
 }
 function weeklyBudget() {
@@ -848,7 +895,7 @@ function weeklyBudget() {
     merch: Math.round((cl.fans * 1.2 * (0.6 + cl.mood / 125)) * (1 + staffLvl('marketing') * 0.1)),
     wages: -t.players.reduce((a, p) => a + playerWage(p), 0) - Math.round((C.loans || []).reduce((a, l) => a + playerWage(l.p), 0) / 2),
     staff: -Object.entries(cl.staff || {}).reduce((a, [k, x]) => a + staffWage(k, x.lvl), 0),
-    upkeep: -Math.round(s.standing * 0.6 + s.seated * 1.2 + s.covered * 2 + s.vip * 25 + s.lights * 1500 + cl.fac.training * 1200 + cl.fac.youth * 900),
+    upkeep: -Math.round((s.standing * 0.6 + s.seated * 1.2 + s.covered * 2 + s.vip * 25 + s.lights * 1500 + cl.fac.training * 1200 + cl.fac.youth * 900) * (1 - staffLvl('finance') * 0.05)),
   };
 }
 function addLedger(k, v) {
@@ -857,6 +904,7 @@ function addLedger(k, v) {
 }
 function startBuild(key) {
   const b = BUILDS[key], cl = C.club;
+  if (buildLocked(key)) return `${b.name} kan byggas först i division ${buildDiv(key)}.`;
   if (b.ok && !b.ok(cl.stadium, cl.fac)) return 'Den här utbyggnaden är inte möjlig just nu.';
   if (cl.builds.some(x => x.key === key)) return 'Det bygget pågår redan.';
   const cost = buildCost(key), weeks = buildWeeks(key);

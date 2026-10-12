@@ -112,10 +112,14 @@ const DEFAULT_BOARDS = [['NORDSKOG', '#1d5b2a', '#d8ffd0'], ['ÄLVKRAFT', '#7fd3
 const STAND_X0 = -3.4, STAND_X1 = L + 3.4; // läktarnas läge bakom målen (oförändrat)
 const ARENA = { rows: [], farRows: [], mainRows: 8, endRows: 6, roof: false, vip: 0, lights: 2, towers: [], boards: DEFAULT_BOARDS, topZ: 7, backY: WD + 12 };
 function srand(seed) { let s = (seed >>> 0) || 1; return () => (s = (s * 1664525 + 1013904223) >>> 0) / 4294967296; }
+const rowY = r => WD + 4 + r * 1.1 + (r >= ARENA.tierAt ? 1.0 : 0);
+const rowZ = r => 0.5 + r * 0.82 + (r >= ARENA.tierAt ? 1.6 : 0);
 function buildArena(cfg) {
   const R = srand(cfg.seed || 7);
-  ARENA.mainRows = clamp(Math.round(cfg.mainRows || 3), 2, 14);
-  ARENA.endRows = clamp(Math.round(cfg.endRows || 0), 0, 10);
+  ARENA.mainRows = clamp(Math.round(cfg.mainRows || 3), 2, 16);
+  ARENA.endRows = clamp(Math.round(cfg.endRows || 0), 0, 12);
+  // Övre läktare: raderna ovanför den nionde lyfts upp en våning. Klubbfärg på läktarkanten och ev. storbildsskärm.
+  ARENA.tierAt = cfg.tier && ARENA.mainRows > 9 ? 9 : 99; ARENA.screen = !!cfg.screen; ARENA.color = cfg.color || '#ffd66b';
   ARENA.roof = !!cfg.roof; ARENA.vip = cfg.vip || 0;
   ARENA.lights = clamp(cfg.lights == null ? 2 : cfg.lights, 0, 3);
   ARENA.boards = cfg.boards && cfg.boards.length ? cfg.boards : DEFAULT_BOARDS;
@@ -125,7 +129,7 @@ function buildArena(cfg) {
   ARENA.rows = [];
   for (let r = mr - 1; r >= 0; r--) {
     const row = { far: true, pts: [] };
-    for (let x = -16; x <= L + 16; x += 0.8) row.pts.push({ x: x + (r % 2) * 0.4 + (R() - 0.5) * 0.2, y: WD + 4 + r * 1.1, z: 0.5 + r * 0.82, c: pick(), ph: R() * TAU, on: R() < fill });
+    for (let x = -16; x <= L + 16; x += 0.8) row.pts.push({ x: x + (r % 2) * 0.4 + (R() - 0.5) * 0.2, y: rowY(r), z: rowZ(r), c: pick(), ph: R() * TAU, on: R() < fill });
     ARENA.rows.push(row);
   }
   for (let r = ARENA.endRows - 1; r >= 0; r--) {
@@ -137,8 +141,8 @@ function buildArena(cfg) {
     ARENA.rows.push(row);
   }
   ARENA.farRows = ARENA.rows.filter(r => r.far && r.pts.some(q => q.on));
-  ARENA.backY = WD + 3.6 + mr * 1.1;
-  ARENA.topZ = 0.25 + mr * 0.82;
+  ARENA.backY = rowY(mr) - 0.4;
+  ARENA.topZ = rowZ(mr) - 0.25;
   const lv = ARENA.lights;
   ARENA.towers = lv === 0 ? [] : lv < 3 ? [[-10, WD + 22], [L + 10, WD + 22]]
     : [[-10, WD + 22], [L + 10, WD + 22], [L * 0.28, ARENA.backY + 7], [L * 0.72, ARENA.backY + 7]];
@@ -204,9 +208,18 @@ function drawStands(dt) {
   const face = [P(-18, WD + 3.3, 0), P(L + 18, WD + 3.3, 0), P(L + 18, bY, tZ), P(-18, bY, tZ)];
   cx.fillStyle = '#141c36'; poly(face); cx.fill();
   cx.fillStyle = 'rgba(255,255,255,0.035)';
-  for (let r = 0; r < ARENA.mainRows; r++) { const y = WD + 4.3 + r * 1.1, z = 0.4 + r * 0.82; poly([P(-18, y, z), P(L + 18, y, z), P(L + 18, y + 0.1, z + 0.1), P(-18, y + 0.1, z + 0.1)]); cx.fill(); }
+  for (let r = 0; r < ARENA.mainRows; r++) { const y = rowY(r) + 0.3, z = rowZ(r) - 0.1; poly([P(-18, y, z), P(L + 18, y, z), P(L + 18, y + 0.1, z + 0.1), P(-18, y + 0.1, z + 0.1)]); cx.fill(); }
   drawCrowd(true, dt);
   cx.fillStyle = 'rgba(6,9,22,0.28)'; poly(face); cx.fill();
+  // Läktarkant i klubbens färg, och fasaden mellan nedre och övre läktaren
+  cx.fillStyle = ARENA.color; cx.globalAlpha = 0.85;
+  poly([P(-18, WD + 3.35, 0), P(L + 18, WD + 3.35, 0), P(L + 18, WD + 3.35, 0.35), P(-18, WD + 3.35, 0.35)]); cx.fill();
+  cx.globalAlpha = 1;
+  if (ARENA.tierAt < 99) {
+    const t = ARENA.tierAt, yb = rowY(t) - 0.75, z0 = rowZ(t - 1) + 0.35, z1 = rowZ(t) - 0.25;
+    cx.fillStyle = '#0d1328'; poly([P(-18, yb, z0), P(L + 18, yb, z0), P(L + 18, yb, z1), P(-18, yb, z1)]); cx.fill();
+    cx.fillStyle = ARENA.color; poly([P(-18, yb - 0.01, z1 - 0.35), P(L + 18, yb - 0.01, z1 - 0.35), P(L + 18, yb - 0.01, z1), P(-18, yb - 0.01, z1)]); cx.fill();
+  }
   if (ARENA.roof) {
     const fy = WD + 3.8, fz = tZ + 3.8;
     cx.fillStyle = '#0c1122';
@@ -218,6 +231,7 @@ function drawStands(dt) {
     cx.fillStyle = '#fff3cf';
     for (let x = -16; x <= L + 16; x += 4) { const p = P(x, fy - 0.05, fz + 0.15); cx.fillRect(p[0] - p[2] * 0.14, p[1] - p[2] * 0.12, p[2] * 0.28, p[2] * 0.12); }
   }
+  if (ARENA.screen) drawScreen();
   if (ARENA.endRows > 0) {
     const off = 1.6 + ARENA.endRows * 1.05 + 0.6, h = 0.6 + ARENA.endRows * 0.79;
     cx.fillStyle = '#10172d';
@@ -227,6 +241,23 @@ function drawStands(dt) {
   }
 }
 
+// Storbildsskärm på läktartaket: visar ställningen och matchklockan
+function drawScreen() {
+  const y = ARENA.backY + 0.7, z0 = ARENA.topZ + (ARENA.roof ? 4.6 : 1.2), z1 = z0 + 4.2;
+  const a = P(L / 2 - 8, y, z1), b = P(L / 2 + 8, y, z0);
+  cx.fillStyle = '#05070f'; cx.fillRect(a[0], a[1], b[0] - a[0], b[1] - a[1]);
+  const m = (b[0] - a[0]) * 0.03;
+  cx.fillStyle = '#0b1838'; cx.fillRect(a[0] + m, a[1] + m, b[0] - a[0] - 2 * m, b[1] - a[1] - 2 * m);
+  const leg = P(L / 2, y, ARENA.topZ); cx.strokeStyle = '#1a2136'; cx.lineWidth = Math.max(1, 0.25 * leg[2]);
+  cx.beginPath(); cx.moveTo(leg[0], leg[1]); cx.lineTo(leg[0], b[1]); cx.stroke();
+  if (typeof G !== 'undefined' && G.teams && G.teams.home) {
+    const h = b[1] - a[1];
+    setFont(600, h * 0.42, TEKO); cx.textAlign = 'center'; cx.textBaseline = 'middle'; cx.fillStyle = '#ffffff';
+    cx.fillText(`${G.teams.home.short} ${G.score.home}–${G.score.away} ${G.teams.away.short}`, (a[0] + b[0]) / 2, a[1] + h * 0.42);
+    setFont(600, h * 0.26, TEKO); cx.fillStyle = '#ffd66b';
+    cx.fillText(`${Math.min(90, Math.floor(G.clock))}'`, (a[0] + b[0]) / 2, a[1] + h * 0.78);
+  }
+}
 function drawTowers() {
   for (const [x, y] of ARENA.towers) {
     const b = P(x, y, 0), t = P(x, y, 27.5);

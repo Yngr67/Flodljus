@@ -57,7 +57,7 @@ function renderHeader() {
   const t = userTeam(), cl = C.club;
   $('crest').setAttribute('style', kitVars(t.kit));
   $('clubName').textContent = t.name;
-  $('clubSub').textContent = C.round < C.fixtures.length ? `Division ${C.div} · Säsong ${C.season} · Omgång ${C.round + 1} av ${C.fixtures.length} · ${fmtDate(cupPending() ? cupDate(cupPending().stage) : leagueDate(C.round))}` : `Division ${C.div} · Säsong ${C.season}`;
+  $('clubSub').textContent = C.pre > 0 ? `Division ${C.div} · Säsong ${C.season} · Försäsong, vecka ${PRE_WEEKS - C.pre + 1} av ${PRE_WEEKS} · ${fmtDate(preDate(PRE_WEEKS - C.pre))}` : C.round < C.fixtures.length ? `Division ${C.div} · Säsong ${C.season} · Omgång ${C.round + 1} av ${C.fixtures.length} · ${fmtDate(cupPending() ? cupDate(cupPending().stage) : leagueDate(C.round))}` : `Division ${C.div} · Säsong ${C.season}`;
   $('kCash').textContent = money(cl.cash); $('kCash').className = cl.cash < 0 ? 'bad' : '';
   $('kFans').textContent = cl.fans.toLocaleString('sv-SE');
   $('kMood').textContent = moodName(cl.mood);
@@ -199,6 +199,7 @@ function matchSides() {
   return { uf, home: uf.home ? me : uf.opp, away: uf.home ? uf.opp : me };
 }
 ACTIONS.next = () => {
+  if (C.pre > 0) return preModal();
   if (cupPending()) return cupModal();
   if (C.round >= C.fixtures.length) return;
   const { uf, home, away } = matchSides(), me = userTeam(), tb = table();
@@ -212,7 +213,8 @@ ACTIONS.next = () => {
       <div class="team">${crest(away.kit, 44)}<b>${esc(away.name)}</b><small class="muted">${posOf(away)}:a i tabellen</small></div>
     </div>
     ${strengthBars(home, away)}
-    <div><h3 style="font-size:17px" class="muted">Din startfemma · ${TACTIC_NAME[me.tactic]}</h3>
+    ${analystTip(uf.opp)}
+    <div><h3 style="font-size:17px" class="muted">Din startelva · ${TACTIC_NAME[me.tactic]}</h3>
     <div class="tablewrap"><table><tbody>${lu.map((p, i) => `<tr><td class="muted">${SLOT_NAME[SLOTS[i]]}</td><td>${p.num}</td><td>${natFlag(p)}${esc(p.name)} ${traitBadges(p)}</td><td>${formDots(p.form)}</td><td class="num">${skCell(slotRating(p, SLOTS[i]))}</td></tr>`).join('')}</tbody></table></div></div>
     ${inj.length ? `<div class="bad">Skadade: ${inj.map(p => esc(p.name)).join(', ')}</div>` : ''}
     ${me.players.some(p => p.away) ? `<div class="muted">🌍 I landslaget: ${me.players.filter(p => p.away).map(p => esc(p.name)).join(', ')}</div>` : ''}
@@ -220,6 +222,12 @@ ACTIONS.next = () => {
 };
 ACTIONS.lineupGo = () => { closeModal(); show('lineup'); };
 // Staplarna följer klubbmärkena: hemmalaget till vänster, bortalaget till höger
+// Matchanalytikern pekar ut motståndarens farligaste spelare
+function analystTip(opp) {
+  if (!staffLvl('analyst') || !opp) return '';
+  const p = lineupPlayers(opp).slice().sort((a, b) => ovr(b) - ovr(a))[0];
+  return p ? `<div style="font-size:13px">🧠 <b>Analytikern:</b> se upp för ${natFlag(p)}${esc(p.name)} (${POS_NAME[p.pos]}, betyg ${disp(ovr(p))}${p.tr && p.tr.length ? ' ' + traitText(p) : ''}). Laget får +${staffLvl('analyst') * 2} % i matchen.</div>` : '';
+}
 function strengthBars(home, away) {
   const a = teamStrength(home), b = teamStrength(away), tot = a + b;
   const me = home.user ? a : b, opp = home.user ? b : a;
@@ -229,11 +237,12 @@ function strengthBars(home, away) {
 }
 function runMatch(watch) {
   closeModal();
+  if (C.pre > 0) return runPre(watch);
   if (cupPending()) return runCup(watch);
   const { uf, home, away } = matchSides();
   const att = attendance(home, away);
   const meta = {
-    home: engineTeam(home), away: engineTeam(away), arena: arenaCfg(home, att), att,
+    home: matchTeam(home), away: matchTeam(away), arena: arenaCfg(home, att), att,
     userSide: uf.home ? 'home' : 'away', roundLabel: `Division ${C.div} · Omgång ${C.round + 1} · ${fmtDate(leagueDate(C.round))}`,
     onEnd: res => afterMatch(res, false),
   };
@@ -293,6 +302,52 @@ function afterMatch(res, quick) {
   toast(`${gf > ga ? 'Seger' : gf < ga ? 'Förlust' : 'Oavgjort'} ${gf}–${ga} mot ${oppName}.`, gf < ga);
   if (summary) seasonModal(summary); else ntModal();
 }
+// ===== Försäsong =====
+const PRE_INFO = 'Räknas inte i serien · biljetter och sponsorer ger mindre, men lönerna betalas som vanligt · träningen ger halv effekt';
+function preNextCard() {
+  const f = preFixture(), me = userTeam();
+  return `<div class="card" style="grid-column:1/-1">
+    <div class="spread"><div class="eyebrow">🌱 Försäsong · ${fmtDate(f.date)} · Träningsmatch ${f.i + 1} av ${PRE_WEEKS} · ${f.home ? 'Hemma' : 'Borta'}</div><span class="muted" style="font-size:12px">${PRE_INFO}</span></div>
+    <div class="vs"><div class="team click" data-act="team" data-id="${f.h.id}">${crest(f.h.kit, 48)}<b>${esc(f.h.name)}</b><small class="muted">div ${divOfTeam(f.h)}</small></div><div class="v">VS</div><div class="team click" data-act="team" data-id="${f.a.id}">${crest(f.a.kit, 48)}<b>${esc(f.a.name)}</b><small class="muted">div ${divOfTeam(f.a)}</small></div></div>
+    ${strengthBars(f.h, f.a)}
+    ${C.preRes.length ? `<div class="muted" style="font-size:13px">Hittills: ${C.preRes.map(x => `${x.gf}–${x.ga} mot ${esc(x.opp)}`).join(' · ')}</div>` : ''}
+    <div class="row"><button class="btn primary big" type="button" data-act="watch">Se matchen</button><button class="btn" type="button" data-act="sim">Simulera</button><button class="btn" type="button" data-act="preAll">Simulera hela försäsongen</button><button class="btn" type="button" data-act="tab" data-tab="lineup">Laguppställning</button></div>
+  </div>`;
+}
+function preModal() {
+  const f = preFixture();
+  modal(`<div class="eyebrow">🌱 ${fmtDate(f.date)} · Försäsong · träningsmatch ${f.i + 1} av ${PRE_WEEKS}</div>
+    <div class="vs"><div class="team">${crest(f.h.kit, 44)}<b>${esc(f.h.name)}</b></div><div class="v">VS</div><div class="team">${crest(f.a.kit, 44)}<b>${esc(f.a.name)}</b></div></div>
+    ${strengthBars(f.h, f.a)}
+    <p class="muted" style="margin:0">${PRE_INFO}.</p>
+    <div class="row"><button class="btn primary big" type="button" data-act="watch">Se matchen</button><button class="btn" type="button" data-act="sim">Simulera</button><button class="btn" type="button" data-act="preAll">Hela försäsongen</button></div>`);
+}
+function preMeta() {
+  const f = preFixture(), att = friendlyAtt(f.h, f.a);
+  return { home: matchTeam(f.h), away: matchTeam(f.a), arena: arenaCfg(f.h, att), att, userSide: f.home ? 'home' : 'away', roundLabel: `🌱 Försäsong · träningsmatch ${f.i + 1} av ${PRE_WEEKS} · ${fmtDate(f.date)}`, onEnd: res => afterPre(res, false) };
+}
+function runPre(watch) {
+  const meta = preMeta();
+  if (watch) startMatch(meta);
+  else { Match.meta = meta; afterPre(quickMatch(meta), true); }
+}
+function afterPre(res, quick) {
+  const f = preFixture(), meta = Match.meta, rep = quick && meta ? reportHtml(res, meta) : null;
+  playPreWeek(res); saveCareer(); show('overview');
+  const gf = f.home ? res.hg : res.ag, ga = f.home ? res.ag : res.hg;
+  if (rep) modal(`<div class="eyebrow">${esc(meta.roundLabel)} · simulerad</div><h2>${gf > ga ? 'Seger' : gf < ga ? 'Förlust' : 'Oavgjort'} mot ${esc(f.opp.name)}</h2>${rep}
+    <button class="btn primary big" type="button" data-act="closeModal">Fortsätt</button>`);
+  else toast(`Träningsmatch: ${gf > ga ? 'seger' : gf < ga ? 'förlust' : 'oavgjort'} ${gf}–${ga} mot ${f.opp.name}.`, gf < ga);
+}
+ACTIONS.preAll = () => {
+  closeModal();
+  const rows = [];
+  while (C.pre > 0) { const f = preFixture(), meta = preMeta(); Match.meta = meta; const res = quickMatch(meta); playPreWeek(res); rows.push(`${fmtDate(f.date)}: ${f.home ? 'hemma' : 'borta'} mot ${esc(f.opp.name)} <b>${f.home ? res.hg : res.ag}–${f.home ? res.ag : res.hg}</b>`); }
+  saveCareer(); show('overview');
+  modal(`<div class="eyebrow">🌱 Försäsongen är klar</div><h2>Serien börjar ${fmtDate(leagueDate(0))}</h2><ul class="news">${rows.map(x => `<li>${x}</li>`).join('')}</ul>
+    <p class="muted" style="margin:0">Spelarna har tränat med halv effekt under försäsongen, och lönerna har betalats som vanligt.</p>
+    <button class="btn primary big" type="button" data-act="closeModal">Till serien</button>`);
+};
 // ===== Ligacupen =====
 const cupDivTag = id => `<small class="muted">div ${C.cup.div[id]}</small>`;
 function cupMagic(cp) {
@@ -386,7 +441,7 @@ function calendarCard() {
   return `<div class="card"><h3>🗓️ Kalender</h3>
     <div class="cal">${ev.map((e, i) => `<div class="calrow ${e.kind}${i === 0 ? ' now' : ''}"${e.team ? ` data-act="team" data-id="${e.team}"` : ''}>
       <div class="cald"><b>${e.date.toLocaleDateString('sv-SE', { weekday: 'short' })}</b><span>${e.date.getDate()}/${e.date.getMonth() + 1}</span></div>
-      <div><div>${e.kind === 'nt' ? '🌍 ' : e.kind !== 'league' ? '🏆 ' : ''}${esc(e.text)}</div><small class="muted">${esc(e.sub)}</small></div></div>`).join('')}</div>
+      <div><div>${e.kind === 'nt' ? '🌍 ' : e.kind === 'pre' ? '🌱 ' : e.kind !== 'league' ? '🏆 ' : ''}${esc(e.text)}</div><small class="muted">${esc(e.sub)}</small></div></div>`).join('')}</div>
     <div class="muted" style="font-size:12px">Ligan spelas på lördagar, Ligacupen på onsdagar. Säsongen ${2025 + C.season} börjar ${fmtDate(seasonStart())}.</div>
   </div>`;
 }
@@ -422,7 +477,7 @@ function seasonModal(s) {
     ${s.awards && s.awards[s.div] && s.awards[s.div].length ? `<div><div class="muted">Utmärkelser i division ${s.div} · ger extra utveckling (yngre får mer)</div><ul class="news">${s.awards[s.div].map(a => `<li class="${a.mine ? 'good' : ''}">${AWARD[a.type].icon} <b>${AWARD[a.type].name}:</b> ${esc(a.name)} (${esc(a.team)}, ${a.age} år) · ${a.val} ${AWARD[a.type].what} · ${SKILL_NAME[AWARD[a.type].skill]} +${Math.round(a.gain * 5)}</li>`).join('')}</ul></div>` : s.kings && s.kings[s.div] ? `<p>⚽ Skyttekung i division ${s.div}: <b>${esc(s.kings[s.div].name)}</b> (${esc(s.kings[s.div].team)}), ${s.kings[s.div].goals} mål.</p>` : ''}
     ${s.awards ? (() => { const mine = Object.keys(s.awards).filter(d => +d !== s.div).flatMap(d => s.awards[d].filter(a => a.mine)); return mine.length ? `<p class="good">${mine.map(a => `${AWARD[a.type].icon} ${esc(a.name)}: ${AWARD[a.type].name.toLowerCase()}`).join(' · ')}</p>` : ''; })() : ''}
     ${s.highlights && s.highlights.length ? `<div><div class="muted">Säsongens höjdpunkter</div><ul class="news">${s.highlights.map(highlightRow).join('')}</ul></div>` : ''}
-    <p class="muted">Alla spelare har blivit ett år äldre, och lagen i hela seriepyramiden har flyttats upp och ner.</p>
+    <p class="muted">Alla spelare har blivit ett år äldre, och lagen i hela seriepyramiden har flyttats upp och ner. Nu väntar en försäsong med ${PRE_WEEKS} träningsmatcher.</p>
     <button class="btn primary" type="button" data-act="closeModal">Till säsong ${C.season}</button>`);
 }
 ACTIONS.closeModal = closeModal;
@@ -433,7 +488,8 @@ SCREENS.overview = () => {
   const me = userTeam(), tb = table(), cl = C.club, s = cl.stadium;
   let next = '';
   const cp = cupPending();
-  if (cp) next = cupNextCard(cp);
+  if (C.pre > 0) next = preNextCard();
+  else if (cp) next = cupNextCard(cp);
   else if (C.round < C.fixtures.length) {
     const { uf, home, away } = matchSides();
     next = `<div class="card" style="grid-column:1/-1">
@@ -442,6 +498,7 @@ SCREENS.overview = () => {
       <div class="vs"><div class="team click" data-act="team" data-id="${home.id}">${crest(home.kit, 48)}<b>${esc(home.name)}</b></div><div class="v">VS</div><div class="team click" data-act="team" data-id="${away.id}">${crest(away.kit, 48)}<b>${esc(away.name)}</b></div></div>
       <div class="muted" style="font-size:12px;text-align:center;margin-top:-6px">Tryck på ett lag för att se startelvan</div>
       ${strengthBars(home, away)}
+      ${analystTip(uf.opp)}
       <div class="row"><button class="btn primary big" type="button" data-act="watch">Se matchen</button><button class="btn" type="button" data-act="sim">Simulera</button><button class="btn" type="button" data-act="tab" data-tab="lineup">Laguppställning</button></div>
     </div>`;
   }
@@ -528,8 +585,8 @@ function loanSection(p) {
   const err = loanCheck(p), divs = [];
   for (let d = C.div + 1; d <= lowestDiv(); d++) divs.push(d);
   return `<div class="card" style="padding:12px;gap:8px"><b>Låna ut för speltid</b>
-    <div class="muted" style="font-size:13px">Spelaren får spela i en lägre division resten av säsongen och kommer hem när säsongen är slut (eller när du kallar tillbaka spelaren). Låneklubben betalar halva lönen.</div>
-    ${err ? `<div class="bad" style="font-size:13px">${err}</div>` : `<div class="row" style="flex-wrap:wrap">${divs.map(d => `<button class="btn sm" type="button" data-act="loan" data-id="${p.id}" data-d="${d}" style="display:flex;flex-direction:column;align-items:flex-start;gap:2px"><b>Division ${d}</b><small>ca ${loanMinutes(p, d)} min per match</small></button>`).join('')}</div>`}
+    <div class="muted" style="font-size:13px">Spelaren får spela i en lägre division resten av säsongen och kommer hem när säsongen är slut (eller när du kallar tillbaka spelaren). Låneklubben betalar halva lönen. Högre division ger bättre träning men ofta mindre speltid.</div>
+    ${err ? `<div class="bad" style="font-size:13px">${err}</div>` : `<div class="row" style="flex-wrap:wrap">${divs.map(d => `<button class="btn sm" type="button" data-act="loan" data-id="${p.id}" data-d="${d}" style="display:flex;flex-direction:column;align-items:flex-start;gap:2px"><b>Division ${d}</b><small>ca ${loanMinutes(p, d)} min/match · träning ${Math.round(loanTraining(d) * 100)} %</small></button>`).join('')}</div>`}
   </div>`;
 }
 function loansCard() {

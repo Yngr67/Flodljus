@@ -83,7 +83,15 @@ const STAFF = {
   coach: { icon: '📋', name: 'Hjälptränare', minDiv: 3, minDiv6: 5, desc: l => `+${l * 15} % utveckling på träningen.` },
   scout: { icon: '🔭', name: 'Scout', minDiv: 3, minDiv6: 4, desc: l => `Hittar bättre spelare till transfermarknaden och förhandlar ner priset ${l * 4} %.` },
   admin: { icon: '🗂️', name: 'Administratör', minDiv: 2, minDiv6: 3, desc: l => `Byggen ${l * 10} % billigare${l >= 2 ? ' och en vecka snabbare' : ''}, och +${l * 5} % från sponsorer.` },
+  // Dyrare specialister (lön ×1,8) – några sköter saker automatiskt
+  fitness: { icon: '💪', name: 'Fystränare', minDiv: 4, minDiv6: 6, pricey: true, desc: l => `Spelarna orkar mer i slutet av matcherna och skadar sig ${l * 10} % mer sällan.` },
+  youthHead: { icon: '🎓', name: 'Akademichef', minDiv: 4, minDiv6: 5, pricey: true, auto: 'loan', autoText: 'Låna ut juniorer som inte får speltid automatiskt inför varje säsong', desc: l => `Större chans till stjärnor i akademin${l >= 3 ? ' och en extra junior varje år' : ''}.` },
+  marketing: { icon: '📣', name: 'Marknadschef', minDiv: 3, minDiv6: 4, pricey: true, desc: l => `+${l * 8} % sponsorpengar, +${l * 10} % souvenirer och fler åskådare.` },
+  director: { icon: '🧑‍💼', name: 'Sportchef', minDiv: 3, minDiv6: 4, pricey: true, auto: 'sell', autoText: 'Sälj spelare som ligger ute till försäljning automatiskt när ett bra bud kommer', desc: l => `Klubbar bjuder ${l * 5} % mer på dina spelare, och fynd på transfermarknaden markeras med ⭐.` },
+  analyst: { icon: '🧠', name: 'Matchanalytiker', minDiv: 2, minDiv6: 3, pricey: true, desc: l => `Laget presterar ${l * 2} % bättre i matcherna, och du får veta motståndarens farligaste spelare.` },
 };
+const staffWage = (k, l) => Math.round(STAFF_WAGE[l] * (STAFF[k].pricey ? 1.8 : 1));
+const autoOn = k => !!(C.club.staff && C.club.staff[k] && STAFF[k].auto && (C.club.auto || {})[STAFF[k].auto] !== false);
 const STAFF_WAGE = { 1: 900, 2: 2500, 3: 6000 };
 const STAFF_TITLE = { 1: 'Junior', 2: 'Erfaren', 3: 'Elit' };
 const staffMinDiv = k => (DIVS.length === 6 ? STAFF[k].minDiv6 : STAFF[k].minDiv);
@@ -94,7 +102,7 @@ function hireStaff(k, lvl) {
   cl.staff = cl.staff || {};
   if (C.div > staffMinDiv(k)) return `${S.name} kan anställas först i division ${staffMinDiv(k)}.`;
   if (lvl > staffMax()) return `Nivå ${'★'.repeat(lvl)} kräver en högre division.`;
-  const fee = STAFF_WAGE[lvl] * 4;
+  const fee = staffWage(k, lvl) * 4;
   if (cl.cash < fee) return `Du har inte råd. Det saknas ${money(fee - cl.cash)}.`;
   const old = cl.staff[k];
   cl.cash -= fee; addLedger('hire', -fee);
@@ -487,7 +495,9 @@ function cupDate(stage) { const d = leagueDate(cupRoundOf(stage) - 1); d.setDate
 const fmtDate = (d, long) => d.toLocaleDateString('sv-SE', long ? { weekday: 'long', day: 'numeric', month: 'long', year: 'numeric' } : { weekday: 'long', day: 'numeric', month: 'long' });
 // Kommande händelser för din klubb: seriematcher och Ligacupens omgångar
 function upcoming(n = 6) {
-  const out = [], me = userTeam(), ord = cupPlan().order, c = C.cup && C.cup.season === C.season && C.cup.v === 2 ? C.cup : null;
+  const out = [], me = userTeam(), ord = cupPlan().order;
+  for (let i = PRE_WEEKS - (C.pre || 0); C.pre && i < PRE_WEEKS; i++) { const o = teamById(C.preOpp[i]); if (o) out.push({ date: preDate(i), kind: 'pre', text: `${i % 2 === 0 ? 'Hemma mot' : 'Borta mot'} ${o.name}`, sub: `Försäsong · träningsmatch ${i + 1} av ${PRE_WEEKS}`, team: o.id }); }
+  const _ord = ord, c = C.cup && C.cup.season === C.season && C.cup.v === 2 ? C.cup : null;
   for (let r = C.round; r < C.fixtures.length && out.length < n * 2; r++) {
     const f = userFixture(r);
     out.push({ date: leagueDate(r), kind: 'league', text: `${f.home ? 'Hemma mot' : 'Borta mot'} ${f.opp.name}`, sub: `Omgång ${r + 1}`, team: f.opp.id });
@@ -604,10 +614,14 @@ function cupSim(h, a) {
 // Matchlag för motorn med cupmagi: spelarnas egenskaper förstärks under matchen (bara i cupen)
 function cupEngineTeam(t, m) {
   const e = engineTeam(t);
-  if (m === 1) return e;
-  const boost = p => ({ ...p, sk: Object.fromEntries(Object.entries(p.sk).map(([k, v]) => [k, v * m])) });
+  // Din klubb: matchanalytikern (+2 % per nivå) och fystränaren (mer ork) påverkar själva matchen
+  const sta = t.user ? staffLvl('fitness') * 1.2 : 0;
+  if (t.user) m *= 1 + staffLvl('analyst') * 0.02;
+  if (m === 1 && !sta) return e;
+  const boost = p => ({ ...p, sk: Object.fromEntries(Object.entries(p.sk).map(([k, v]) => [k, v * m + (k === 'sta' ? sta : 0)])) });
   return { ...e, lineup: e.lineup.map(boost), bench: e.bench.map(boost) };
 }
+const matchTeam = t => cupEngineTeam(t, 1);
 // Lottning: helst inte två lag från samma division i kvartsfinalen. Laget från lägre division spelar hemma.
 function cupDraw(teams, avoidSame) {
   let best = null;
@@ -733,7 +747,7 @@ function refreshMarket(full) {
 function buyPlayer(id) {
   const t = userTeam(), i = C.market.findIndex(p => p.id === id), p = C.market[i];
   if (!p) return 'Spelaren finns inte kvar på marknaden.';
-  if (t.players.length + (C.loans || []).length >= 16) return 'Truppen är full (16 spelare inklusive utlånade). Sälj någon först.';
+  if (t.players.length + (C.loans || []).length >= SQUAD_MAX) return `Truppen är full (${SQUAD_MAX} spelare inklusive utlånade). Sälj någon först.`;
   if (C.club.cash < p.price) return `Du har inte råd. Det saknas ${money(p.price - C.club.cash)}.`;
   C.club.cash -= p.price; C.market.splice(i, 1);
   const price = p.price; delete p.price;
@@ -750,6 +764,46 @@ function sellNow(id) {
   removePlayer(t, p); C.club.cash += amount; addLedger('transfers', amount);
   news(`${p.name} såldes direkt för ${money(amount)}.`);
   return null;
+}
+// Bud på spelare som ligger ute till försäljning. Sportchefen höjer buden och kan sälja automatiskt.
+function makeOffers(t) {
+  C.offers = [];
+  const dl = staffLvl('director');
+  for (const p of t.players.filter(x => x.listed)) {
+    const n = R.poisson(1.1);
+    for (let i = 0; i < n; i++) {
+      const amount = Math.round(playerValue(p) * rnd(0.72, 1.25) * (1 + dl * 0.05) / 500) * 500;
+      C.offers.push({ pid: p.id, club: `${R.pick(PLACES)} ${R.pick(SUFFIX)}`, amount });
+    }
+  }
+  if (autoOn('director')) {
+    const best = {};
+    for (const o of C.offers) if (!best[o.pid] || o.amount > best[o.pid].amount) best[o.pid] = o;
+    for (const pid in best) {
+      const o = best[pid], p = findP(t, +pid);
+      if (p && o.amount >= playerValue(p) && t.players.length > 11) { const err = acceptOffer(C.offers.indexOf(o)); if (!err) news(`🧑‍💼 Sportchefen sålde ${p.name} till ${o.club} för ${money(o.amount)}.`, 'good'); }
+    }
+  }
+  if (C.offers.length) news(`Du har fått ${C.offers.length} bud på dina spelare. Se Transfer.`, 'good');
+}
+// Sportchefens fyndmarkering: priset är lågt jämfört med vad spelaren är värd för din klubb (nivå och potential)
+function isBargain(p) {
+  const dl = staffLvl('director'); if (!dl || p.price == null) return false;
+  const worth = playerValue(p) * (1 + 0.04 * dl) * (p.age <= 21 && p.pot - ovr(p) > 2.5 ? 1.15 : 1);
+  return p.price <= worth * 0.97 && ovr(p) >= LEVEL[C.div] - 1;
+}
+// Akademichefen lånar ut juniorer som inte får speltid, till den högsta division där de får spela ordentligt
+function autoLoans() {
+  if (!autoOn('youthHead')) return;
+  const t = userTeam(), lu = new Set(lineupPlayers(t).map(p => p.id));
+  const cands = t.players.filter(p => p.age <= LOAN_AGE && !lu.has(p.id) && !p.listed).sort((a, b) => (b.pot - ovr(b)) - (a.pot - ovr(a)));
+  for (const p of cands) {
+    if (loanCheck(p)) break;
+    let best = null;
+    for (let d = C.div + 1; d <= lowestDiv(); d++) if (loanMinutes(p, d) >= 55) { best = d; break; }
+    if (!best) best = lowestDiv() > C.div ? lowestDiv() : null;
+    if (best && !loanOut(p.id, best)) news(`🎓 Akademichefen lånade ut ${p.name} till division ${best} för speltid.`, 'good');
+  }
 }
 function acceptOffer(oi) {
   const o = C.offers[oi], t = userTeam(), p = findP(t, o.pid);
@@ -769,7 +823,7 @@ function attendance(team, opp) {
   if (!team.user) { const cap = capacity(s); const n = Math.round(cap * rnd(0.5, 0.95)); return { total: n, cap, sec: null }; }
   const cl = C.club, pl = PRICE_LEVEL[cl.ticket];
   const oppBoost = 1 + Math.max(0, 4 - table().findIndex(r => r.t === opp)) * 0.05;
-  let demand = (cl.fans * (0.45 + cl.mood / 110) + 300 * DIV_MULT[C.div]) * pl.demand * oppBoost * rnd(0.9, 1.1);
+  let demand = (cl.fans * (0.45 + cl.mood / 110) + 300 * DIV_MULT[C.div]) * pl.demand * oppBoost * rnd(0.9, 1.1) * (1 + staffLvl('marketing') * 0.05);
   const share = { vip: 0.03, covered: 0.22, seated: 0.3, standing: 0.45 };
   const sec = {}; let spill = 0, total = 0, income = 0;
   for (const k of ['vip', 'covered', 'seated', 'standing']) {
@@ -789,11 +843,11 @@ function arenaCfg(team, att) {
 function weeklyBudget() {
   const cl = C.club, s = cl.stadium, t = userTeam();
   return {
-    sponsors: Math.round(4500 * DIV_MULT[C.div] * (0.7 + cl.mood / 170) * (1 + s.lights * 0.05) * (1 + staffLvl('admin') * 0.05)),
+    sponsors: Math.round(4500 * DIV_MULT[C.div] * (0.7 + cl.mood / 170) * (1 + s.lights * 0.05) * (1 + staffLvl('admin') * 0.05) * (1 + staffLvl('marketing') * 0.08)),
     tv: TV_MONEY[C.div],
-    merch: Math.round(cl.fans * 1.2 * (0.6 + cl.mood / 125)),
+    merch: Math.round((cl.fans * 1.2 * (0.6 + cl.mood / 125)) * (1 + staffLvl('marketing') * 0.1)),
     wages: -t.players.reduce((a, p) => a + playerWage(p), 0) - Math.round((C.loans || []).reduce((a, l) => a + playerWage(l.p), 0) / 2),
-    staff: -Object.values(cl.staff || {}).reduce((a, x) => a + STAFF_WAGE[x.lvl], 0),
+    staff: -Object.entries(cl.staff || {}).reduce((a, [k, x]) => a + staffWage(k, x.lvl), 0),
     upkeep: -Math.round(s.standing * 0.6 + s.seated * 1.2 + s.covered * 2 + s.vip * 25 + s.lights * 1500 + cl.fac.training * 1200 + cl.fac.youth * 900),
   };
 }
@@ -832,7 +886,9 @@ function developPlayer(p, min, facF, intF, focus, report, r) {
 
 // ===== Utlåning =====
 // Unga spelare (högst 21 år) kan lånas ut till en klubb i en lägre division resten av säsongen. Högst två åt gången.
-const LOAN_MAX = 2, LOAN_AGE = 21;
+const LOAN_MAX = 4, LOAN_AGE = 21, SQUAD_MAX = 20;
+// Låneklubbens träning beror på divisionen: högre division = bättre träning (men ofta mindre speltid)
+const loanTraining = d => 0.7 + (lowestDiv() + 1 - d) * (0.6 / Math.max(1, lowestDiv() - 1));
 // Ungefärlig speltid per match i en division, utifrån hur bra spelaren är jämfört med divisionens nivå
 const loanMinutes = (p, d) => Math.round(clamp(62 + (ovr(p) - LEVEL[d]) * 14, 10, 88));
 function loanCheck(p) {
@@ -881,7 +937,7 @@ function playLoans(report, r) {
       if (Math.random() < 0.02) { p.inj = R.int(1, 3); news(`${p.name} skadade sig i ${l.club} (${p.inj} v).`, 'bad'); }
     }
     // Låneklubbens träning: enklare anläggning, allround
-    developPlayer(p, min, 0.9, 1, 'all', report, r);
+    developPlayer(p, min, loanTraining(l.div), 1, 'all', report, r);
   }
 }
 
@@ -918,7 +974,7 @@ function playRound(userRes) {
   for (const e of my) {
     const p = findP(t, e.id); if (!p) continue;
     p.apps++; p.goals += e.goals; p.assists = (p.assists || 0) + e.assists; p.rsum += e.rating; p.last = e.rating;
-    if (Math.random() < 0.025 * INTENSITY[cl.training.intensity].inj * (1 - staffLvl('physio') * 0.2)) {
+    if (Math.random() < 0.025 * INTENSITY[cl.training.intensity].inj * (1 - staffLvl('physio') * 0.2) * (1 - staffLvl('fitness') * 0.1)) {
       p.inj = R.int(1, 4); report.injuries.push(`${p.name} (${p.inj} v)`);
     }
   }
@@ -954,16 +1010,7 @@ function playRound(userRes) {
   for (const b of cl.builds) b.left--;
   for (const b of cl.builds.filter(x => x.left <= 0)) { BUILDS[b.key].apply(cl.stadium, cl.fac); news(`${BUILDS[b.key].name} är klar!`, 'good'); }
   cl.builds = cl.builds.filter(x => x.left > 0);
-  // Bud på spelare som ligger ute till försäljning
-  C.offers = [];
-  for (const p of t.players.filter(x => x.listed)) {
-    const n = R.poisson(1.1);
-    for (let i = 0; i < n; i++) {
-      const amount = Math.round(playerValue(p) * rnd(0.72, 1.25) / 500) * 500;
-      C.offers.push({ pid: p.id, club: `${R.pick(PLACES)} ${R.pick(SUFFIX)}`, amount });
-    }
-  }
-  if (C.offers.length) news(`Du har fått ${C.offers.length} bud på dina spelare. Se Transfer.`, 'good');
+  makeOffers(t);
   refreshMarket(false);
   C.trainLog = report.trained.slice(0, 12);
   C.lastMatch = { round: r, home: uf.home, opp: uf.opp.name, gf, ga, report, ledger: { ...C.ledger } };
@@ -976,6 +1023,55 @@ function playRound(userRes) {
   if (ntWindows().includes(C.round)) callUps();
   if (C.round >= C.fixtures.length) return endSeason();
   return null;
+}
+
+// ===== Försäsong =====
+// Fyra träningsmatcher innan serien börjar. Lägre intäkter men full lön, och halv träningseffekt.
+const PRE_WEEKS = 4;
+function preDate(i) { const d = seasonStart(); d.setDate(d.getDate() - 7 * (PRE_WEEKS - i)); return d; }
+function startPreseason() {
+  const near = DIVS.filter(d => Math.abs(d - C.div) <= 1).flatMap(d => divGroup(d).teams).filter(t => !t.user).sort(() => Math.random() - 0.5);
+  C.pre = PRE_WEEKS; C.preOpp = near.slice(0, PRE_WEEKS).map(t => t.id); C.preRes = [];
+}
+function preFixture() {
+  if (!C.pre) return null;
+  const i = PRE_WEEKS - C.pre, opp = teamById(C.preOpp[i]), me = userTeam();
+  if (!opp) return null;
+  const home = i % 2 === 0;
+  return { i, opp, home, h: home ? me : opp, a: home ? opp : me, date: preDate(i) };
+}
+function friendlyAtt(h, a) { const x = attendance(h, a); return { ...x, total: Math.round(x.total * 0.35), income: Math.round((x.income || 0) * 0.35) }; }
+function playPreWeek(res) {
+  const f = preFixture(); if (!f) return;
+  const t = userTeam(), cl = C.club, side = f.home ? 'home' : 'away';
+  C.ledger = C.ledger || {};
+  const report = { injuries: [], trained: [], retired: [] }, mins = {};
+  for (const e of res.players[side]) { mins[e.id] = e.min ?? 90; const p = findP(t, e.id); if (p) p.last = e.rating; }
+  for (const p of t.players) if (mins[p.id] && Math.random() < 0.01) { p.inj = R.int(1, 2); report.injuries.push(`${p.name} (${p.inj} v)`); }
+  // Träning med halv effekt
+  const facF = (0.7 + cl.fac.training * 0.15) * (1 + staffLvl('coach') * 0.15), intF = INTENSITY[cl.training.intensity].gain * 0.5;
+  for (const p of t.players) if (!away(p)) developPlayer(p, mins[p.id] || 0, facF, intF, cl.training.focus, report, 0);
+  for (const l of C.loans || []) developPlayer(l.p, 45, loanTraining(l.div), 0.5, 'all', report, 0);
+  for (const p of t.players) { if (p.inj) p.inj--; if (p.away) p.away--; }
+  // Ekonomi: biljetter från träningsmatchen, halva sponsor- och souvenirintäkterna, inga TV-pengar – men full lön och drift
+  if (f.home) addLedger('tickets', friendlyAtt(f.h, f.a).income);
+  const wb = weeklyBudget();
+  for (const k in wb) addLedger(k, k === 'tv' ? 0 : k === 'sponsors' || k === 'merch' ? Math.round(wb[k] * 0.5) : wb[k]);
+  cl.cash += Object.entries(C.ledger).filter(([k]) => !['transfers', 'build', 'cup', 'hire'].includes(k)).reduce((a, [, v]) => a + v, 0);
+  for (const b of cl.builds) b.left--;
+  for (const b of cl.builds.filter(x => x.left <= 0)) { BUILDS[b.key].apply(cl.stadium, cl.fac); news(`${BUILDS[b.key].name} är klar!`, 'good'); }
+  cl.builds = cl.builds.filter(x => x.left > 0);
+  makeOffers(t);
+  refreshMarket(false);
+  const gf = f.home ? res.hg : res.ag, ga = f.home ? res.ag : res.hg;
+  C.preRes.push({ opp: f.opp.name, home: f.home, gf, ga });
+  C.trainLog = report.trained.slice(0, 12);
+  C.lastMatch = { round: -1, home: f.home, opp: f.opp.name, gf, ga, report, ledger: { ...C.ledger }, pre: true };
+  C.ledger = {};
+  news(`Träningsmatch: ${f.home ? t.name : f.opp.name} ${res.hg}–${res.ag} ${f.home ? f.opp.name : t.name}.`);
+  if (report.injuries.length) news(`Skadade i träningsmatchen: ${report.injuries.join(', ')}.`, 'bad');
+  C.pre--; C.week++;
+  if (!C.pre) news(`Försäsongen är slut (${C.preRes.filter(x => x.gf > x.ga).length} vinster av ${PRE_WEEKS}). Serien börjar ${fmtDate(leagueDate(0))}!`, 'good');
 }
 
 // ===== Säsongens utmärkelser =====
@@ -1061,14 +1157,14 @@ function endSeason() {
     p.age++; p.listed = p.listed && true; p.goals = 0; p.assists = 0; p.apps = 0; p.rsum = 0;
     if (p.age >= 35 || (p.age >= 33 && Math.random() < 0.4)) { removePlayer(t, p); summary.retired.push(p.name); }
   }
-  const nYouth = 1 + (cl.fac.youth >= 3 ? 1 : 0);
+  const nYouth = 1 + (cl.fac.youth >= 3 ? 1 : 0) + (staffLvl('youthHead') >= 3 ? 1 : 0);
   for (let i = 0; i < nYouth; i++) {
     // Akademins juniorer: nivån följer klubbens division (men under A-laget). Potentialen är oftast medel –
     // en riktig stjärna (betyg 85+) kommer bara ibland, oftare med bättre akademi.
     const p = genPlayer(LEVEL[C.div] - 3 + cl.fac.youth * 0.3, R.pick(['DEF', 'MID', 'FWD', 'GK']), R.int(16, 17));
     const main = Math.max(...SKILLS.filter(k => PROFILES[p.pos][k] > 0).map(k => p.sk[k]));
-    p.pot = r1(clamp(Math.max(main + 1, 9 + cl.fac.youth * 0.7 + 9 * Math.pow(Math.random(), 2.8)), 6, 20)); p.num = freeNumber(t, p.pos);
-    if (t.players.length + (C.loans || []).length < 16) { t.players.push(p); summary.youth.push(`${p.name} (${POS_NAME[p.pos]}, potential ${disp(p.pot)})`); }
+    p.pot = r1(clamp(Math.max(main + 1, 9 + cl.fac.youth * 0.7 + staffLvl('youthHead') * 0.5 + 9 * Math.pow(Math.random(), 2.8 - staffLvl('youthHead') * 0.3)), 6, 20)); p.num = freeNumber(t, p.pos);
+    if (t.players.length + (C.loans || []).length < SQUAD_MAX) { t.players.push(p); summary.youth.push(`${p.name} (${POS_NAME[p.pos]}, potential ${disp(p.pot)})`); }
   }
   // Upp- och nedflyttning i hela pyramiden: topp 3 upp, de 3 sista ner (äldre format: 2 och 2)
   const next = {}; for (const d of DIVS) next[d] = [];
@@ -1095,6 +1191,8 @@ function endSeason() {
   C.season++; C.round = 0; C.offers = [];
   refreshMarket(true);
   autoLineup(t); t.wish = t.lineup.slice();
+  startPreseason();
+  autoLoans();
   news(move < 0 ? `UPPFLYTTNING! Nästa säsong spelar ni i division ${C.div}.` : move > 0 ? `Nedflyttning till division ${C.div}. Dags att bygga om.` : `Säsong ${C.season - 1} slut: plats ${pos} i division ${oldDiv}.`, move < 0 ? 'good' : move > 0 ? 'bad' : 'info');
   news(`Prispengar: ${money(prize)}.`, 'good');
   news(`${summary.champion} vann division 1 säsong ${C.season - 1}.`);

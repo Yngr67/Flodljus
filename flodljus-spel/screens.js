@@ -86,7 +86,7 @@ ACTIONS.intensity = el => { C.club.training.intensity = el.dataset.v; act(null);
 SCREENS.transfer = () => {
   const t = userTeam(), listed = t.players.filter(p => p.listed);
   const offers = C.offers.map((o, i) => ({ ...o, i, p: findP(t, o.pid) })).filter(o => o.p);
-  return `<div class="spread"><h2 style="font-size:40px">Transfer</h2><span class="muted">Kassa <b>${money(C.club.cash)}</b> · Trupp ${t.players.length}/16</span></div>
+  return `<div class="spread"><h2 style="font-size:40px">Transfer</h2><span class="muted">Kassa <b>${money(C.club.cash)}</b> · Trupp ${t.players.length + C.loans.length}/${SQUAD_MAX}</span></div>
   <div class="grid">
     <div class="card"><h3>Bud på dina spelare</h3>
       ${offers.length ? `<div class="tablewrap"><table><thead><tr><th>Spelare</th><th>Klubb</th><th class="num">Bud</th><th class="num">Värde</th><th></th></tr></thead><tbody>
@@ -102,7 +102,7 @@ SCREENS.transfer = () => {
   <div class="card"><h3>Spelare på marknaden</h3>
     <div class="tablewrap"><table><thead><tr><th>Namn</th><th>Pos</th><th class="num">Ålder</th><th class="num">Betyg</th>${SKILLS.map(k => `<th class="num" title="${SKILL_NAME[k]}">${SKILL_ABBR[k]}</th>`).join('')}<th>Bedömning</th><th class="num">Lön/v</th><th class="num">Pris</th><th></th></tr></thead><tbody>
     ${C.market.slice().sort((a, b) => ovr(b) - ovr(a)).map(p => `<tr class="click" data-act="mplayer" data-id="${p.id}">
-      <td>${natFlag(p)}<b>${esc(p.name)}</b> ${traitBadges(p)}</td><td><span class="pos">${POS_NAME[p.pos]}</span></td><td class="num">${p.age}</td><td class="num">${skCell(ovr(p))}</td>
+      <td>${natFlag(p)}<b>${esc(p.name)}</b> ${traitBadges(p)}${isBargain(p) ? ' <span class="tag up" title="Sportchefens tips: bra pris för kvaliteten">⭐ Fynd</span>' : ''}</td><td><span class="pos">${POS_NAME[p.pos]}</span></td><td class="num">${p.age}</td><td class="num">${skCell(ovr(p))}</td>
       ${SKILLS.map(k => `<td class="num">${skCell(p.sk[k])}</td>`).join('')}<td class="muted">${potLabel(p)}</td><td class="num">${money(playerWage(p))}</td>
       <td class="num"><b>${money(p.price)}</b></td><td><button class="btn sm primary" type="button" data-act="buy" data-id="${p.id}"${C.club.cash < p.price ? ' disabled' : ''}>Köp</button></td></tr>`).join('')}
     </tbody></table></div>
@@ -197,13 +197,13 @@ SCREENS.staff = () => {
     const cur = cl.staff && cl.staff[k], locked = C.div > staffMinDiv(k);
     const lv = cur ? cur.lvl : 0;
     const opts = [1, 2, 3].map(l => {
-      const fee = STAFF_WAGE[l] * 4, can = !locked && l <= max && l !== lv && cl.cash >= fee;
-      const why = locked ? '' : l > max ? `<small>Kräver div ${l === 2 ? (DIVS.length === 6 ? 4 : 3) : 2}</small>` : l === lv ? '<small>Anställd</small>' : `<small>${money(STAFF_WAGE[l])}/v · värvning ${money(fee)}</small>`;
+      const fee = staffWage(k, l) * 4, can = !locked && l <= max && l !== lv && cl.cash >= fee;
+      const why = locked ? '' : l > max ? `<small>Kräver div ${l === 2 ? (DIVS.length === 6 ? 4 : 3) : 2}</small>` : l === lv ? '<small>Anställd</small>' : `<small>${money(staffWage(k, l))}/v · värvning ${money(fee)}</small>`;
       return `<button class="btn sm${can && l > lv ? ' primary' : ''}" type="button" data-act="hire" data-k="${k}" data-l="${l}"${can ? '' : ' disabled'} style="display:flex;flex-direction:column;align-items:flex-start;gap:2px"><b>${'★'.repeat(l)} ${STAFF_TITLE[l]}</b>${why}</button>`;
     }).join('');
     return `<div class="card"${locked ? ' style="opacity:.6"' : ''}>
       <div class="spread"><h3 style="margin:0">${S.icon} ${S.name}</h3>${cur ? `<span class="tag up">${'★'.repeat(cur.lvl)} ${STAFF_TITLE[cur.lvl]}</span>` : locked ? `<span class="tag">🔒 Division ${staffMinDiv(k)}</span>` : '<span class="tag sale">Ledig tjänst</span>'}</div>
-      ${cur ? `<div><b>${esc(cur.name)}</b> <span class="muted">· sedan säsong ${cur.since} · ${money(STAFF_WAGE[cur.lvl])} i veckan</span></div><p style="margin:0">${S.desc(cur.lvl)}</p>`
+      ${cur ? `<div><b>${esc(cur.name)}</b> <span class="muted">· sedan säsong ${cur.since} · ${money(staffWage(k, cur.lvl))} i veckan</span></div><p style="margin:0">${S.desc(cur.lvl)}</p>${S.auto ? `<label style="display:flex;align-items:flex-start;gap:8px;font-size:13px;cursor:pointer"><input type="checkbox" style="margin-top:2px;flex:none" data-change="autoToggle" data-a="${S.auto}"${(cl.auto || {})[S.auto] !== false ? ' checked' : ''}> 🤖 ${S.autoText}</label>` : ''}`
         : `<p class="muted" style="margin:0">${locked ? `Låses upp när ni når division ${staffMinDiv(k)}. ` : ''}Med en ${S.name.toLowerCase()}: ${S.desc(1).charAt(0).toLowerCase() + S.desc(1).slice(1)} <small>(nivå ★)</small></p>`}
       ${locked ? '' : `<div class="row" style="flex-wrap:wrap">${opts}</div>`}
       ${cur ? `<button class="btn sm" type="button" data-act="fire" data-k="${k}" style="align-self:flex-start">Säg upp</button>` : ''}
@@ -213,6 +213,7 @@ SCREENS.staff = () => {
   <p class="muted" style="margin:0 0 4px">Ju högre upp ni spelar, desto fler och bättre medarbetare kan ni anställa. ${DIVS.length === 6 ? 'Division 5–6: nivå ★ · division 3–4: upp till ★★ · division 1–2: upp till ★★★.' : 'Division 4: nivå ★ · division 3: upp till ★★ · division 2 och 1: upp till ★★★.'} Värvningen kostar fyra veckolöner.</p>
   <div class="grid">${Object.entries(STAFF).map(([k, S]) => card(k, S)).join('')}</div>`;
 };
+ACTIONS.autoToggle = el => { C.club.auto = C.club.auto || {}; C.club.auto[el.dataset.a] = el.checked; act(null, el.checked ? 'Automatiken är på.' : 'Automatiken är av.'); };
 ACTIONS.hire = el => { const k = el.dataset.k, l = +el.dataset.l; act(hireStaff(k, l), `${STAFF[k].name} anställd!`); };
 ACTIONS.fire = el => {
   const k = el.dataset.k, st = C.club.staff[k];

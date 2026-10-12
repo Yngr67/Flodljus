@@ -219,7 +219,9 @@ function genPlayer(level, pos, age, nat) {
   const sk = {};
   for (const k of SKILLS) sk[k] = r1(clamp(base + PROFILES[pos][k] + R.gauss() * 1.2, 1, 20));
   const main = Math.max(...SKILLS.filter(k => PROFILES[pos][k] > 0).map(k => sk[k]));
-  const head = age <= 19 ? rnd(3, 7) : age <= 22 ? rnd(1.5, 4.5) : age <= 26 ? rnd(0.5, 2) : rnd(0, 0.8);
+  // Potential: de flesta unga blir hyggliga, ett fåtal blir stjärnor (sned fördelning – inte en stjärna i varje kull)
+  const u = Math.random();
+  const head = age <= 19 ? 0.5 + 6.5 * Math.pow(u, 2.2) : age <= 22 ? 0.3 + 4 * Math.pow(u, 2) : age <= 26 ? u * 1.8 : u * 0.6;
   return {
     id: C ? C.nextId++ : Math.floor(Math.random() * 1e9), name: genName(nat), nat, age, pos, sk,
     pot: r1(clamp(main + head, main, 20)), form: R.int(2, 4), num: 0, inj: 0, listed: false,
@@ -232,10 +234,14 @@ function formMult(p) { return 0.88 + (p.form - 1) * 0.06; }
 function playerValue(p) {
   const o = ovr(p);
   const ageM = p.age <= 21 ? 1.4 : p.age <= 26 ? 1.2 : p.age <= 29 ? 1 : p.age <= 32 ? 0.65 : 0.35;
-  const v = Math.pow(o, 3.2) * 30 * ageM * (1 + Math.max(0, p.pot - o) * 0.07) * (1 + 0.15 * (p.tr ? p.tr.length : 0)) * (1 + Math.min(20, p.caps || 0) * 0.01);
+  const v = Math.pow(o, 3.2) * 30 * ageM * (1 + Math.max(0, p.pot - o) * (p.age <= 23 ? 0.12 : 0.07)) * (1 + 0.15 * (p.tr ? p.tr.length : 0)) * (1 + Math.min(20, p.caps || 0) * 0.01);
   return Math.max(2000, Math.round(v / 500) * 500);
 }
-function playerWage(p) { return Math.round((playerValue(p) * 0.004 + 250) / 10) * 10; }
+// Lön: stiger brant med kvaliteten. En typisk spelare i division 1 kostar några tusen i veckan, en stjärna mycket mer.
+function playerWage(p) {
+  const o = Math.max(1, ovr(p)), young = p.age <= 20 ? 0.6 : 1, caps = 1 + Math.min(20, p.caps || 0) * 0.01;
+  return Math.round((250 + 1900 * Math.pow(o / 14, 3.6) * young * caps) / 10) * 10;
+}
 function levelName(v) { return v < 5 ? 'Svag' : v < 8 ? 'Hygglig' : v < 11 ? 'Bra' : v < 14 ? 'Utmärkt' : v < 17 ? 'Fantastisk' : 'Världsklass'; }
 function freeNumber(team, pos) {
   const used = new Set(team.players.map(p => p.num));
@@ -679,7 +685,7 @@ function cupPlayed(res) {
 function newCareer(clubName, kitIdx) {
   setFormat(6); NAMES = null;
   C = {
-    v: 1, format: 7, v6: true, trophyMig: true, savedAt: 0, season: 1, round: 0, div: 6, nextId: 1, week: 1,
+    v: 1, format: 7, v6: true, trophyMig: true, bal27: true, natMig: true, nameFix: 1, savedAt: 0, season: 1, round: 0, div: 6, nextId: 1, week: 1,
     club: {
       cash: 150000, fans: 900, mood: 60, ticket: 'normal', training: { focus: 'all', intensity: 'normal' },
       stadium: { standing: 1200, seated: 300, covered: 0, vip: 0, lights: 1 }, fac: { training: 1, youth: 1 }, builds: [], staff: {},
@@ -713,13 +719,14 @@ function news(text, kind = 'info') { C.news.unshift({ s: C.season, w: C.round + 
 // ===== Transfermarknad =====
 function refreshMarket(full) {
   if (full) C.market = [];
-  C.market = C.market.filter(() => Math.random() < 0.5);
-  while (C.market.length < 12) {
+  // Färre nya spelare per vecka (en fjärdedel byts) så att marknaden inte blir ett smörgåsbord
+  C.market = C.market.filter(() => Math.random() < 0.75);
+  while (C.market.length < 10) {
     const pos = R.pick(['GK', 'DEF', 'DEF', 'MID', 'MID', 'FWD', 'FWD']);
     const sc = staffLvl('scout');
-    const lvl = LEVEL[C.div] + rnd(-2.2, 3.2) + sc * 0.6;
+    const lvl = LEVEL[C.div] + rnd(-2.5, 2.2) + sc * 0.4;
     const p = genPlayer(lvl, pos, null, rollNat(0.25));
-    p.price = Math.round(playerValue(p) * rnd(0.95, 1.35) * (1 - sc * 0.04) / 500) * 500;
+    p.price = Math.round(playerValue(p) * rnd(1.0, 1.4) * (1 - sc * 0.04) / 500) * 500;
     C.market.push(p);
   }
 }
@@ -935,7 +942,9 @@ function playRound(userRes) {
   // Publik och humör
   const won = gf > ga, draw = gf === ga;
   cl.mood = clamp(cl.mood + (won ? 5 + Math.min(3, gf - ga) : draw ? 1 : -4 - Math.min(3, ga - gf)), 5, 100);
-  cl.fans = Math.max(200, Math.round(cl.fans * (1 + (cl.mood - 50) / 2000) + (won ? 12 * DIV_MULT[C.div] : 0)));
+  // Supportrarna närmar sig en nivå som beror på divisionen, stämningen och klubbens titlar – de växer inte i all oändlighet
+  const fanTarget = 1100 * DIV_MULT[C.div] * (0.5 + cl.mood / 100) * (1 + Math.min(10, (C.trophies || []).length) * 0.03);
+  cl.fans = Math.max(200, Math.round(cl.fans + (fanTarget - cl.fans) * 0.04 + (won ? 4 * DIV_MULT[C.div] : 0)));
   // Ekonomi
   if (uf.home && userRes.att) addLedger('tickets', userRes.att.income);
   const wb = weeklyBudget();
@@ -1054,8 +1063,11 @@ function endSeason() {
   }
   const nYouth = 1 + (cl.fac.youth >= 3 ? 1 : 0);
   for (let i = 0; i < nYouth; i++) {
-    const p = genPlayer(LEVEL[lowestDiv()] - 2.5 + cl.fac.youth * 0.6, R.pick(['DEF', 'MID', 'FWD', 'GK']), R.int(16, 17));
-    p.pot = r1(clamp(9 + cl.fac.youth * 1.8 + rnd(-2, 3), 6, 20)); p.num = freeNumber(t, p.pos);
+    // Akademins juniorer: nivån följer klubbens division (men under A-laget). Potentialen är oftast medel –
+    // en riktig stjärna (betyg 85+) kommer bara ibland, oftare med bättre akademi.
+    const p = genPlayer(LEVEL[C.div] - 3 + cl.fac.youth * 0.3, R.pick(['DEF', 'MID', 'FWD', 'GK']), R.int(16, 17));
+    const main = Math.max(...SKILLS.filter(k => PROFILES[p.pos][k] > 0).map(k => p.sk[k]));
+    p.pot = r1(clamp(Math.max(main + 1, 9 + cl.fac.youth * 0.7 + 9 * Math.pow(Math.random(), 2.8)), 6, 20)); p.num = freeNumber(t, p.pos);
     if (t.players.length + (C.loans || []).length < 16) { t.players.push(p); summary.youth.push(`${p.name} (${POS_NAME[p.pos]}, potential ${disp(p.pot)})`); }
   }
   // Upp- och nedflyttning i hela pyramiden: topp 3 upp, de 3 sista ner (äldre format: 2 och 2)

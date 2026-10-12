@@ -170,6 +170,14 @@ function hydrate() {
   C.highlights = C.highlights || []; C.loans = C.loans || [];
   if (C.cup && C.cup.v !== 2) C.cup = null; // Supercupen ersätts av Ligacupen
   if (fixDuplicateNames()) saveCareer();
+  // Balansändring (v27): supportrarna hade vuxit utan gräns – sätt dem till en rimlig nivå för divisionen
+  if (!C.bal27) {
+    C.bal27 = true;
+    const target = Math.round(1100 * DIV_MULT[C.div] * (0.5 + C.club.mood / 100) * 1.3);
+    if (C.club.fans > target) { C.club.fans = target; }
+    news('Balansändring: lönerna stiger nu brant med spelarnas kvalitet, supportrarna har ett tak per division, akademins stjärnor är sällsyntare och transfermarknaden byts ut långsammare.', 'info');
+    saveCareer();
+  }
   if (migrateNations()) { news('Nytt: utländska spelare (flagga vid namnet) och landslagsuppehåll två gånger per säsong. De bästa spelarna kallas till landslaget och missar två omgångar.', 'good'); saveCareer(); }
   if (migrateTrophies()) news('Nytt: troféskåpet! Era titlar finns på översikten.', 'good');
   { const o = cupPlan().order; if ((!C.cup || C.cup.season !== C.season) && C.round >= cupRoundOf(o[0]) && C.round < cupRoundOf(o[1])) { startCup(); saveCareer(); } }

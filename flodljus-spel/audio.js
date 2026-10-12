@@ -1,6 +1,6 @@
 'use strict';
 // ===== Felrapport: fångar fel så att spelet inte fryser, och sparar senaste felet så att det kan visas efteråt =====
-const GAME_VERSION = 26;
+const GAME_VERSION = 27;
 // Grafikläge: 'hog' eller 'lag' (lätt). Sparas i telefonen.
 const GFX = { low: false };
 try { GFX.low = localStorage.getItem('flodljus-grafik') === 'lag'; } catch (e) { /* ingen lagring */ }

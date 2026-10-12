@@ -140,6 +140,34 @@ function rollTraits(pos, level) {
   return out;
 }
 
+// ===== Nationaliteter =====
+// De flesta spelare är svenska. Utländska spelare är vanligare högre upp i pyramiden.
+const NATIONS = {
+  SE: { flag: '🇸🇪', name: 'Sverige', gen: 'Sveriges' },
+  NO: { flag: '🇳🇴', name: 'Norge', gen: 'Norges', first: ['Ola', 'Sander', 'Magnus', 'Jonas', 'Henrik', 'Erling', 'Martin', 'Kristian', 'Sindre', 'Eirik', 'Håkon', 'Torbjørn'], last: ['Hansen', 'Johansen', 'Olsen', 'Berge', 'Haugen', 'Solberg', 'Bakken', 'Dahl', 'Strand', 'Myhre', 'Lie', 'Nygård'] },
+  DK: { flag: '🇩🇰', name: 'Danmark', gen: 'Danmarks', first: ['Mads', 'Rasmus', 'Kasper', 'Mikkel', 'Frederik', 'Christian', 'Søren', 'Anders', 'Jonas', 'Thomas', 'Mathias', 'Nicolai'], last: ['Jensen', 'Nielsen', 'Hansen', 'Pedersen', 'Kristensen', 'Sørensen', 'Rasmussen', 'Poulsen', 'Madsen', 'Christensen', 'Thomsen', 'Møller'] },
+  FI: { flag: '🇫🇮', name: 'Finland', gen: 'Finlands', first: ['Juha', 'Teemu', 'Jukka', 'Mikko', 'Antti', 'Lauri', 'Joni', 'Eero', 'Ville', 'Sami', 'Tuomas', 'Jere'], last: ['Virtanen', 'Korhonen', 'Mäkinen', 'Nieminen', 'Hämäläinen', 'Laine', 'Heikkinen', 'Koskinen', 'Järvinen', 'Lehtonen', 'Salonen', 'Rantanen'] },
+  IS: { flag: '🇮🇸', name: 'Island', gen: 'Islands', first: ['Gylfi', 'Aron', 'Jóhann', 'Birkir', 'Hörður', 'Ragnar', 'Kári', 'Arnór', 'Alfreð', 'Hannes'], last: ['Sigurðsson', 'Gunnarsson', 'Guðmundsson', 'Bjarnason', 'Magnússon', 'Jónsson', 'Halldórsson', 'Finnbogason', 'Árnason', 'Traustason'] },
+  DE: { flag: '🇩🇪', name: 'Tyskland', gen: 'Tysklands', first: ['Lukas', 'Jonas', 'Leon', 'Felix', 'Maximilian', 'Tim', 'Niklas', 'Florian', 'Julian', 'Moritz', 'Kai', 'Thomas'], last: ['Müller', 'Schmidt', 'Schneider', 'Fischer', 'Weber', 'Becker', 'Hoffmann', 'Wagner', 'Koch', 'Richter', 'Wolf', 'Neuer'] },
+  NL: { flag: '🇳🇱', name: 'Nederländerna', gen: 'Nederländernas', first: ['Daan', 'Bram', 'Sem', 'Thijs', 'Joris', 'Ruben', 'Stijn', 'Jesse', 'Lars', 'Wout', 'Frenkie', 'Ryan'], last: ['de Jong', 'Jansen', 'de Vries', 'van den Berg', 'Bakker', 'Visser', 'Smit', 'Meijer', 'de Boer', 'Mulder', 'Bos', 'Vos'] },
+  EN: { flag: '🏴󠁧󠁢󠁥󠁮󠁧󠁿', name: 'England', gen: 'Englands', first: ['Harry', 'Jack', 'James', 'Oliver', 'George', 'Charlie', 'Jordan', 'Mason', 'Declan', 'Kyle', 'Jude', 'Bukayo'], last: ['Smith', 'Jones', 'Taylor', 'Brown', 'Walker', 'Wright', 'Robinson', 'Hughes', 'Clarke', 'Stones', 'Rice', 'Henderson'] },
+  ES: { flag: '🇪🇸', name: 'Spanien', gen: 'Spaniens', first: ['Pablo', 'Sergio', 'Álvaro', 'Iker', 'Javier', 'Raúl', 'Diego', 'Marcos', 'Rodrigo', 'Dani', 'Pedro', 'Unai'], last: ['García', 'Fernández', 'González', 'Rodríguez', 'López', 'Martínez', 'Sánchez', 'Pérez', 'Gómez', 'Ruiz', 'Moreno', 'Navarro'] },
+  FR: { flag: '🇫🇷', name: 'Frankrike', gen: 'Frankrikes', first: ['Lucas', 'Hugo', 'Antoine', 'Théo', 'Mathis', 'Kylian', 'Olivier', 'Raphaël', 'Ousmane', 'Adrien', 'Benjamin', 'Jules'], last: ['Martin', 'Bernard', 'Dubois', 'Durand', 'Lefebvre', 'Moreau', 'Laurent', 'Girard', 'Mercier', 'Fontaine', 'Rousseau', 'Blanc'] },
+  BR: { flag: '🇧🇷', name: 'Brasilien', gen: 'Brasiliens', first: ['Gabriel', 'Lucas', 'Matheus', 'Rafael', 'Thiago', 'Bruno', 'Vinícius', 'Rodrigo', 'Felipe', 'Caio', 'Renan', 'Danilo'], last: ['Silva', 'Santos', 'Oliveira', 'Souza', 'Costa', 'Pereira', 'Almeida', 'Ferreira', 'Lima', 'Carvalho', 'Ribeiro', 'Barbosa'] },
+  AR: { flag: '🇦🇷', name: 'Argentina', gen: 'Argentinas', first: ['Lautaro', 'Julián', 'Nicolás', 'Facundo', 'Gonzalo', 'Ezequiel', 'Rodrigo', 'Lionel', 'Enzo', 'Alexis', 'Matías', 'Thiago'], last: ['Fernández', 'Álvarez', 'Romero', 'Martínez', 'Acuña', 'Paredes', 'Otamendi', 'Molina', 'Correa', 'Domínguez', 'Rojas', 'Medina'] },
+  NG: { flag: '🇳🇬', name: 'Nigeria', gen: 'Nigerias', first: ['Victor', 'Samuel', 'Ahmed', 'Kelechi', 'Emmanuel', 'Wilfred', 'Ademola', 'Chidozie', 'Calvin', 'Joe', 'Taiwo', 'Moses'], last: ['Osimhen', 'Iheanacho', 'Ndidi', 'Musa', 'Lookman', 'Aribo', 'Awoniyi', 'Okoye', 'Ekong', 'Simon', 'Onyeka', 'Bassey'] },
+  GH: { flag: '🇬🇭', name: 'Ghana', gen: 'Ghanas', first: ['Kwame', 'Kofi', 'Thomas', 'Mohammed', 'Jordan', 'Daniel', 'Inaki', 'Abdul', 'Kamaldeen', 'Joseph', 'Emmanuel', 'Richard'], last: ['Partey', 'Ayew', 'Kudus', 'Amartey', 'Salisu', 'Semenyo', 'Owusu', 'Mensah', 'Boateng', 'Asamoah', 'Djiku', 'Lamptey'] },
+  RS: { flag: '🇷🇸', name: 'Serbien', gen: 'Serbiens', first: ['Dušan', 'Aleksandar', 'Nemanja', 'Sergej', 'Luka', 'Filip', 'Strahinja', 'Andrija', 'Uroš', 'Nikola', 'Marko', 'Lazar'], last: ['Vlahović', 'Mitrović', 'Milinković', 'Tadić', 'Kostić', 'Pavlović', 'Živković', 'Jović', 'Lukić', 'Gudelj', 'Babić', 'Nikolić'] },
+  PL: { flag: '🇵🇱', name: 'Polen', gen: 'Polens', first: ['Robert', 'Piotr', 'Jakub', 'Kamil', 'Krzysztof', 'Wojciech', 'Mateusz', 'Arkadiusz', 'Przemysław', 'Bartosz', 'Sebastian', 'Karol'], last: ['Nowak', 'Kowalski', 'Wiśniewski', 'Lewandowski', 'Zieliński', 'Szymański', 'Kamiński', 'Piątek', 'Bednarek', 'Glik', 'Krychowiak', 'Frankowski'] },
+  BA: { flag: '🇧🇦', name: 'Bosnien', gen: 'Bosniens', first: ['Edin', 'Miralem', 'Sead', 'Ermedin', 'Rade', 'Haris', 'Amar', 'Benjamin', 'Ermin', 'Kenan', 'Anel', 'Smail'], last: ['Džeko', 'Pjanić', 'Kolašinac', 'Demirović', 'Krunić', 'Hajradinović', 'Hadžikadunić', 'Tahirović', 'Bičakčić', 'Ahmetović', 'Prevljak', 'Gojak'] },
+};
+const FOREIGN = Object.keys(NATIONS).filter(k => k !== 'SE');
+// Andel utländska spelare per division (högre upp = fler)
+const foreignShare = d => ({ 1: 0.25, 2: 0.2, 3: 0.15, 4: 0.1, 5: 0.07, 6: 0.05 }[d] || 0.05);
+const rollNat = share => (Math.random() < share ? R.pick(FOREIGN) : 'SE');
+const natFlag = p => (p.nat && p.nat !== 'SE' ? NATIONS[p.nat].flag + ' ' : '');
+const away = p => !!(p.inj || p.away); // skadad eller i landslaget
+
 let C = null;
 // Unika spelarnamn: varje namn delas bara ut en gång i världen
 let NAMES = null;
@@ -154,10 +182,10 @@ function namesInUse() {
   for (const l of C.loans || []) NAMES.add(l.p.name);
   return NAMES;
 }
-function genName() {
-  const used = namesInUse();
+function genName(nat) {
+  const used = namesInUse(), N = nat && nat !== 'SE' ? NATIONS[nat] : null;
   let n;
-  for (let i = 0; i < 60; i++) { n = `${R.pick(FIRST)} ${R.pick(LAST)}`; if (!used.has(n)) break; }
+  for (let i = 0; i < 60; i++) { n = N ? `${R.pick(N.first)} ${R.pick(N.last)}` : `${R.pick(FIRST)} ${R.pick(LAST)}`; if (!used.has(n)) break; }
   used.add(n);
   return n;
 }
@@ -184,15 +212,16 @@ const r1 = v => Math.round(v * 10) / 10;
 const money = v => `${Math.round(v).toLocaleString('sv-SE')} kr`;
 
 // ===== Spelare =====
-function genPlayer(level, pos, age) {
-  age = age || R.int(17, 33);
+function genPlayer(level, pos, age, nat) {
+  age = age || R.int(17, 33); nat = nat || 'SE';
+  if (nat !== 'SE') level += 0.4; // utländska värvningar håller ofta lite högre nivå
   const base = level + R.gauss() * 1.5 + (age < 20 ? -1.4 : age < 22 ? -0.6 : age > 30 ? 0.4 : 0);
   const sk = {};
   for (const k of SKILLS) sk[k] = r1(clamp(base + PROFILES[pos][k] + R.gauss() * 1.2, 1, 20));
   const main = Math.max(...SKILLS.filter(k => PROFILES[pos][k] > 0).map(k => sk[k]));
   const head = age <= 19 ? rnd(3, 7) : age <= 22 ? rnd(1.5, 4.5) : age <= 26 ? rnd(0.5, 2) : rnd(0, 0.8);
   return {
-    id: C ? C.nextId++ : Math.floor(Math.random() * 1e9), name: genName(), age, pos, sk,
+    id: C ? C.nextId++ : Math.floor(Math.random() * 1e9), name: genName(nat), nat, age, pos, sk,
     pot: r1(clamp(main + head, main, 20)), form: R.int(2, 4), num: 0, inj: 0, listed: false,
     skin: R.pick(SKINS), hair: R.pick(HAIRS), goals: 0, apps: 0, rsum: 0, last: null, tr: rollTraits(pos, level),
   };
@@ -203,7 +232,7 @@ function formMult(p) { return 0.88 + (p.form - 1) * 0.06; }
 function playerValue(p) {
   const o = ovr(p);
   const ageM = p.age <= 21 ? 1.4 : p.age <= 26 ? 1.2 : p.age <= 29 ? 1 : p.age <= 32 ? 0.65 : 0.35;
-  const v = Math.pow(o, 3.2) * 30 * ageM * (1 + Math.max(0, p.pot - o) * 0.07) * (1 + 0.15 * (p.tr ? p.tr.length : 0));
+  const v = Math.pow(o, 3.2) * 30 * ageM * (1 + Math.max(0, p.pot - o) * 0.07) * (1 + 0.15 * (p.tr ? p.tr.length : 0)) * (1 + Math.min(20, p.caps || 0) * 0.01);
   return Math.max(2000, Math.round(v / 500) * 500);
 }
 function playerWage(p) { return Math.round((playerValue(p) * 0.004 + 250) / 10) * 10; }
@@ -240,13 +269,13 @@ function genTeam(div, usedNames) {
   };
   const lvl = LEVEL[div] + rnd(-1.3, 1.3);
   for (const pos of SQUAD_POS) {
-    const p = genPlayer(lvl, pos); p.num = freeNumber(t, pos); t.players.push(p);
+    const p = genPlayer(lvl, pos, null, rollNat(foreignShare(div))); p.num = freeNumber(t, pos); t.players.push(p);
   }
   autoLineup(t);
   return t;
 }
 function autoLineup(t) {
-  const avail = t.players.filter(p => !p.inj);
+  const avail = t.players.filter(p => !away(p));
   const pool = avail.length >= SLOTS.length ? avail : t.players.slice();
   const chosen = {};
   for (const slot of ['GK', 'FW', 'MF', 'LM', 'RM', 'DL', 'DR']) {
@@ -258,16 +287,20 @@ function autoLineup(t) {
 }
 function findP(t, id) { return t.players.find(p => p.id === id); }
 function lineupPlayers(t) {
-  // Fyller luckor (skadade/sålda) automatiskt
-  const ids = t.lineup.slice();
-  const valid = id => { const p = findP(t, id); return p && !p.inj; };
-  if (!ids.every(valid) || new Set(ids).size !== SLOTS.length || ids.length !== SLOTS.length) {
+  // Fyller luckor (skadade/sålda/landslag) automatiskt. Din valda startelva (t.wish) kommer ihåg vilka som ska
+  // spela, så att spelarna tar tillbaka sina platser när de är friska eller hemma från landslaget igen.
+  const valid = id => { const p = findP(t, id); return p && !away(p); };
+  const okSet = a => a.length === SLOTS.length && new Set(a).size === SLOTS.length;
+  if (t.user && !t.wish && okSet(t.lineup) && t.lineup.every(valid)) t.wish = t.lineup.slice();
+  const ids = (t.user && t.wish && okSet(t.wish) ? t.wish : t.lineup).slice();
+  if (ids.every(valid) && okSet(ids)) t.lineup = ids;
+  else {
     const keep = SLOTS.map((_, i) => (valid(ids[i]) ? ids[i] : null));
     const used = new Set(keep.filter(Boolean));
     SLOTS.forEach((slot, i) => {
       if (keep[i] && ids.indexOf(keep[i]) === i) return;
       let best = null, bv = -1;
-      for (const p of t.players) { if (p.inj || used.has(p.id)) continue; const v = slotRating(p, slot); if (v > bv) { bv = v; best = p; } }
+      for (const p of t.players) { if (away(p) || used.has(p.id)) continue; const v = slotRating(p, slot); if (v > bv) { bv = v; best = p; } }
       if (!best) best = t.players.find(p => !used.has(p.id));
       keep[i] = best.id; used.add(best.id);
     });
@@ -281,7 +314,7 @@ function teamStrength(t) {
 }
 function engineTeam(t) {
   const lineup = lineupPlayers(t), on = new Set(lineup.map(p => p.id));
-  return { name: t.name, short: t.short, kit: t.kit, alt: t.alt, tactic: t.tactic, lineup, bench: t.players.filter(p => !p.inj && !on.has(p.id)) };
+  return { name: t.name, short: t.short, kit: t.kit, alt: t.alt, tactic: t.tactic, lineup, bench: t.players.filter(p => !away(p) && !on.has(p.id)) };
 }
 const userTeam = () => C.teams.find(t => t.user);
 
@@ -348,7 +381,7 @@ function allNamesSoFar() { return C.teams.map(t => t.name); }
 // Datorlagen åldras, utvecklas och fyller på truppen inför ny säsong
 function developAiTeam(tm, d) {
   for (const p of tm.players.slice()) {
-    p.age++; p.goals = 0; p.assists = 0; p.apps = 0; p.rsum = 0; p.inj = 0;
+    p.age++; p.goals = 0; p.assists = 0; p.apps = 0; p.rsum = 0; p.inj = 0; p.away = 0;
     const g = p.age <= 21 ? 0.9 : p.age <= 25 ? 0.4 : p.age >= 31 ? -0.5 : 0;
     for (const k of SKILLS) {
       let v = p.sk[k] + g * rnd(0.4, 1.4);
@@ -360,13 +393,13 @@ function developAiTeam(tm, d) {
   const want = { GK: 2, DEF: 4, MID: 4, FWD: 2 };
   for (const pos in want) {
     while (tm.players.filter(p => p.pos === pos).length < want[pos]) {
-      const p = genPlayer(LEVEL[d] + rnd(-1.2, 1), pos); p.num = freeNumber(tm, pos); tm.players.push(p);
+      const p = genPlayer(LEVEL[d] + rnd(-1.2, 1), pos, null, rollNat(foreignShare(d))); p.num = freeNumber(tm, pos); tm.players.push(p);
     }
   }
   // En nyvärvning på divisionens nivå ersätter ibland den svagaste i samma position
   if (Math.random() < 0.6) {
     const pos = R.pick(['DEF', 'MID', 'FWD']), same = tm.players.filter(p => p.pos === pos).sort((a, b) => ovr(a) - ovr(b));
-    const p = genPlayer(LEVEL[d] + rnd(-0.5, 1.5), pos);
+    const p = genPlayer(LEVEL[d] + rnd(-0.5, 1.5), pos, null, rollNat(foreignShare(d) + 0.1));
     if (same.length && ovr(same[0]) < ovr(p)) { tm.players = tm.players.filter(x => x !== same[0]); p.num = freeNumber(tm, pos); tm.players.push(p); }
   }
   tm.lineup = []; autoLineup(tm);
@@ -385,6 +418,57 @@ function table(g) {
   }));
   return rows.sort((x, y) => y.pts - x.pts || (y.gf - y.ga) - (x.gf - x.ga) || y.gf - x.gf || x.t.name.localeCompare(y.t.name));
 }
+// ===== Landslag =====
+// Två landslagsuppehåll per säsong. De bästa spelarna kallas till sina landslag och missar de två
+// följande omgångarna. Landslagserfarenheten ger extra utveckling och höjer spelarens värde.
+const NT_MISS = 2, NT_SQUAD = 14;
+const ntWindows = () => (DIVS.length === 6 ? [8, 16] : [5, 10]);
+function callUps() {
+  const pool = allTeams().flatMap(t => t.players.map(p => ({ p, t }))).filter(x => !x.p.inj && x.p.age >= 18 && x.p.age <= 34);
+  const se = pool.filter(x => (x.p.nat || 'SE') === 'SE').sort((a, b) => ovr(b.p) - ovr(a.p)).slice(0, NT_SQUAD);
+  const cut = se.length ? ovr(se[se.length - 1].p) * 0.97 : 99;
+  const squads = { SE: se };
+  for (const n of FOREIGN) {
+    const got = pool.filter(x => x.p.nat === n && ovr(x.p) >= cut).sort((a, b) => ovr(b.p) - ovr(a.p)).slice(0, 3);
+    if (got.length) squads[n] = got;
+  }
+  const me = userTeam(), mine = [];
+  for (const n in squads) for (const { p, t } of squads[n]) {
+    p.away = NT_MISS; p.caps = (p.caps || 0) + 2;
+    // Landslagserfarenhet: lite extra utveckling i två egenskaper (unga får mer)
+    const gain = p.age <= 21 ? 0.35 : p.age <= 25 ? 0.25 : 0.12;
+    for (const k of SKILLS.slice().sort((a, b) => p.sk[b] - p.sk[a]).slice(0, 2)) p.sk[k] = Math.round(clamp(p.sk[k] + gain, 1, 20) * 100) / 100;
+    if (t === me) mine.push({ p, n });
+  }
+  // Sveriges landskamper i uppehållet
+  const opps = FOREIGN.slice().sort(() => Math.random() - 0.5).slice(0, 2), games = [];
+  for (const o of opps) {
+    const gf = R.poisson(1.5), ga = R.poisson(1.2), sc = [];
+    for (let i = 0; i < gf; i++) { const x = pickWeighted(se.map(y => y.p), q => ({ FWD: 3, MID: 1.5, DEF: 0.4, GK: 0 }[q.pos]) * (0.5 + q.sk.sho / 20)); if (x) { x.ntGoals = (x.ntGoals || 0) + 1; sc.push(x.name); } }
+    games.push({ opp: o, gf, ga, sc });
+  }
+  C.nt = { season: C.season, round: C.round, squad: se.map(x => ({ id: x.p.id, name: x.p.name, team: x.t.name, pos: x.p.pos })), games, mine: mine.map(x => ({ id: x.p.id, name: x.p.name, nat: x.n })), seen: false };
+  if (mine.length) {
+    C.club.mood = clamp(C.club.mood + 2 * mine.length, 5, 100);
+    news(`🌍 Landslagsuppehåll: ${mine.map(x => `${x.p.name} (${NATIONS[x.n].name})`).join(', ')} är uttagna och missar ${NT_MISS} omgångar.`, 'good');
+  } else news(`🌍 Landslagsuppehåll: ${NT_SQUAD} svenska spelare uttagna. Ingen från er klubb den här gången.`);
+  for (const g of games) news(`🇸🇪 Sverige–${NATIONS[g.opp].name} ${g.gf}–${g.ga}${g.sc.length ? ` (mål: ${g.sc.join(', ')})` : ''}.`, g.gf > g.ga ? 'good' : g.gf < g.ga ? 'bad' : 'info');
+}
+// Äldre karriärer: ge alla spelare en nationalitet. Några av datorlagens spelare blir utländska.
+function migrateNations() {
+  if (C.natMig) return false;
+  C.natMig = true;
+  const me = userTeam();
+  for (const d of DIVS) for (const t of divGroup(d).teams) for (const p of t.players) {
+    if (p.nat) continue;
+    p.nat = 'SE';
+    if (t !== me && Math.random() < foreignShare(d)) { p.nat = R.pick(FOREIGN); p.name = genName(p.nat); }
+  }
+  for (const p of C.market || []) if (!p.nat) { p.nat = Math.random() < 0.25 ? R.pick(FOREIGN) : 'SE'; if (p.nat !== 'SE') p.name = genName(p.nat); }
+  for (const l of C.loans || []) l.p.nat = l.p.nat || 'SE';
+  return true;
+}
+
 // ===== Kalender =====
 // Säsongen börjar första lördagen i april. Ligan spelas på lördagar, Ligacupen på onsdagar.
 function seasonStart() {
@@ -418,6 +502,7 @@ function upcoming(n = 6) {
     else if (c) out.push({ date: when, kind: 'cup', text: 'Motståndare lottas', sub });
     else out.push({ date: when, kind: 'cup-other', text: st === ord[0] ? `De två bästa i varje division efter omgång ${at} kvalar in` : 'Lottas senare', sub });
   }
+  for (const w of ntWindows()) if (w >= C.round) { const d = leagueDate(w - 1); d.setDate(d.getDate() + 3); out.push({ date: d, kind: 'nt', text: 'Landslagsuppehåll', sub: `Uttagna spelare missar omgång ${w + 1}–${w + NT_MISS}` }); }
   return out.sort((a, b) => a.date - b.date).slice(0, n);
 }
 function userFixture(round = C.round) {
@@ -633,7 +718,7 @@ function refreshMarket(full) {
     const pos = R.pick(['GK', 'DEF', 'DEF', 'MID', 'MID', 'FWD', 'FWD']);
     const sc = staffLvl('scout');
     const lvl = LEVEL[C.div] + rnd(-2.2, 3.2) + sc * 0.6;
-    const p = genPlayer(lvl, pos);
+    const p = genPlayer(lvl, pos, null, rollNat(0.25));
     p.price = Math.round(playerValue(p) * rnd(0.95, 1.35) * (1 - sc * 0.04) / 500) * 500;
     C.market.push(p);
   }
@@ -833,12 +918,13 @@ function playRound(userRes) {
   // Träning
   const facF = (0.7 + cl.fac.training * 0.15) * (1 + staffLvl('coach') * 0.15), intF = INTENSITY[cl.training.intensity].gain, focus = cl.training.focus;
   const mins = {}; for (const e of my) mins[e.id] = e.min ?? 90;
-  for (const p of t.players) if (!p.inj) developPlayer(p, mins[p.id] || 0, facF, intF, focus, report, r);
+  for (const p of t.players) if (!away(p)) developPlayer(p, mins[p.id] || 0, facF, intF, focus, report, r);
   playLoans(report, r);
   // Form och skador läker (alla lag)
   const ph = staffLvl('physio');
   for (const tm of allTeams()) for (const p of tm.players) {
     if (p.inj) p.inj--;
+    if (p.away) p.away--;
     if (p.inj && tm.user && Math.random() < ph * 0.25) p.inj--; // fysioterapeuten snabbar på läkningen
     let d = R.pick([-1, 0, 0, 1]);
     if (tm.user && p.last >= 7.5) d += Math.random() < 0.5 ? 1 : 0;
@@ -878,6 +964,7 @@ function playRound(userRes) {
   if (cl.cash < 0) news('Klubbkassan är negativ. Sälj spelare eller dra ner på kostnaderna.', 'bad');
   C.round++; C.week++;
   { const st = cupPlan().at[C.round]; if (st === cupPlan().order[0]) startCup(); else if (st) cupNextStage(st); }
+  if (ntWindows().includes(C.round)) callUps();
   if (C.round >= C.fixtures.length) return endSeason();
   return null;
 }
@@ -995,7 +1082,7 @@ function endSeason() {
   for (const d of DIVS) if (d !== C.div) C.league[d] = groupFrom(next[d]);
   C.season++; C.round = 0; C.offers = [];
   refreshMarket(true);
-  autoLineup(t);
+  autoLineup(t); t.wish = t.lineup.slice();
   news(move < 0 ? `UPPFLYTTNING! Nästa säsong spelar ni i division ${C.div}.` : move > 0 ? `Nedflyttning till division ${C.div}. Dags att bygga om.` : `Säsong ${C.season - 1} slut: plats ${pos} i division ${oldDiv}.`, move < 0 ? 'good' : move > 0 ? 'bad' : 'info');
   news(`Prispengar: ${money(prize)}.`, 'good');
   news(`${summary.champion} vann division 1 säsong ${C.season - 1}.`);

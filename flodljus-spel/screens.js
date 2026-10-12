@@ -14,7 +14,7 @@ SCREENS.lineup = () => {
   const vert = window.innerWidth < 640;
   const t = userTeam(), lu = lineupPlayers(t);
   const opts = (slot, sel) => t.players.slice().sort((a, b) => slotRating(b, slot) - slotRating(a, slot))
-    .map(p => `<option value="${p.id}"${p.id === sel ? ' selected' : ''}${p.inj ? ' disabled' : ''}>${p.num} ${esc(p.name)} ${traitText(p)} · ${disp(slotRating(p, slot))}${p.inj ? ' (skadad)' : ''}</option>`).join('');
+    .map(p => `<option value="${p.id}"${p.id === sel ? ' selected' : ''}${away(p) ? ' disabled' : ''}>${p.num} ${esc(p.name)} ${traitText(p)} · ${disp(slotRating(p, slot))}${p.inj ? ' (skadad)' : p.away ? ' (landslaget)' : ''}</option>`).join('');
   const bench = t.players.filter(p => !t.lineup.includes(p.id));
   return `<div class="spread"><h2 style="font-size:40px">Laguppställning</h2><div class="row"><span class="muted">Lagstyrka</span><b style="font-family:var(--display);font-size:30px;font-weight:500">${disp(teamStrength(t))}</b></div></div>
   <div class="card">
@@ -38,11 +38,11 @@ SCREENS.lineup = () => {
 ACTIONS.setSlot = el => {
   const t = userTeam(), i = +el.dataset.slot, id = +el.value, j = t.lineup.indexOf(id);
   if (j >= 0 && j !== i) t.lineup[j] = t.lineup[i];
-  t.lineup[i] = id;
+  t.lineup[i] = id; t.wish = t.lineup.slice();
   act(null);
 };
 ACTIONS.tactic = el => { userTeam().tactic = el.dataset.v; act(null); };
-ACTIONS.autoLineup = () => { autoLineup(userTeam()); act(null, 'Bästa laget är uttaget.'); };
+ACTIONS.autoLineup = () => { const t = userTeam(); autoLineup(t); t.wish = t.lineup.slice(); act(null, 'Bästa laget är uttaget.'); };
 
 // ===== Träning =====
 const FOCUS_DESC = {
@@ -102,7 +102,7 @@ SCREENS.transfer = () => {
   <div class="card"><h3>Spelare på marknaden</h3>
     <div class="tablewrap"><table><thead><tr><th>Namn</th><th>Pos</th><th class="num">Ålder</th><th class="num">Betyg</th>${SKILLS.map(k => `<th class="num" title="${SKILL_NAME[k]}">${SKILL_ABBR[k]}</th>`).join('')}<th>Bedömning</th><th class="num">Lön/v</th><th class="num">Pris</th><th></th></tr></thead><tbody>
     ${C.market.slice().sort((a, b) => ovr(b) - ovr(a)).map(p => `<tr class="click" data-act="mplayer" data-id="${p.id}">
-      <td><b>${esc(p.name)}</b> ${traitBadges(p)}</td><td><span class="pos">${POS_NAME[p.pos]}</span></td><td class="num">${p.age}</td><td class="num">${skCell(ovr(p))}</td>
+      <td>${natFlag(p)}<b>${esc(p.name)}</b> ${traitBadges(p)}</td><td><span class="pos">${POS_NAME[p.pos]}</span></td><td class="num">${p.age}</td><td class="num">${skCell(ovr(p))}</td>
       ${SKILLS.map(k => `<td class="num">${skCell(p.sk[k])}</td>`).join('')}<td class="muted">${potLabel(p)}</td><td class="num">${money(playerWage(p))}</td>
       <td class="num"><b>${money(p.price)}</b></td><td><button class="btn sm primary" type="button" data-act="buy" data-id="${p.id}"${C.club.cash < p.price ? ' disabled' : ''}>Köp</button></td></tr>`).join('')}
     </tbody></table></div>
@@ -117,7 +117,7 @@ ACTIONS.decline = el => { C.offers.splice(+el.dataset.i, 1); act(null, 'Budet ä
 ACTIONS.mplayer = el => {
   const p = C.market.find(x => x.id === +el.dataset.id);
   if (!p) return;
-  modal(`<div class="spread"><div><div class="eyebrow">${POS_NAME[p.pos]} · ${p.age} år · På marknaden</div><h2>${esc(p.name)}</h2></div>${skCell(ovr(p))}</div>
+  modal(`<div class="spread"><div><div class="eyebrow">${POS_NAME[p.pos]} · ${p.age} år · På marknaden</div><h2>${natFlag(p)}${esc(p.name)}</h2></div>${skCell(ovr(p))}</div>
     ${traitList(p)}
     ${skillBars(p, true)}
     <div class="grid" style="grid-template-columns:repeat(3,1fr);gap:10px">

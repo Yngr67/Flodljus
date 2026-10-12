@@ -21,7 +21,7 @@ function kitVars(k) { return `--shirt:${k.stripes ? `repeating-linear-gradient(9
 function crest(k, size = 34) { return `<div class="crest" style="${kitVars(k)};width:${size}px;height:${Math.round(size * 1.18)}px"></div>`; }
 function potLabel(p) { const d = p.pot - ovr(p); return d > 4 ? 'Stor talang' : d > 2 ? 'Kan utvecklas' : d > 0.8 ? 'Lite kvar att ge' : 'Färdigutvecklad'; }
 function statusTags(p) {
-  return `${p.inj ? `<span class="tag inj">Skadad ${p.inj} v</span>` : ''}${p.listed ? '<span class="tag sale">Till salu</span>' : ''}${p.rise && p.rise >= C.season * 100 + C.round - 1 ? '<span class="tag up">▲ Utvecklas</span>' : ''}`;
+  return `${p.inj ? `<span class="tag inj">Skadad ${p.inj} v</span>` : ''}${p.away ? `<span class="tag" style="background:rgba(123,227,255,.15);color:#7be3ff">🌍 Landslag ${p.away} omg</span>` : ''}${p.listed ? '<span class="tag sale">Till salu</span>' : ''}${p.rise && p.rise >= C.season * 100 + C.round - 1 ? '<span class="tag up">▲ Utvecklas</span>' : ''}`;
 }
 
 let toastT = null;
@@ -170,6 +170,7 @@ function hydrate() {
   C.highlights = C.highlights || []; C.loans = C.loans || [];
   if (C.cup && C.cup.v !== 2) C.cup = null; // Supercupen ersätts av Ligacupen
   if (fixDuplicateNames()) saveCareer();
+  if (migrateNations()) { news('Nytt: utländska spelare (flagga vid namnet) och landslagsuppehåll två gånger per säsong. De bästa spelarna kallas till landslaget och missar två omgångar.', 'good'); saveCareer(); }
   if (migrateTrophies()) news('Nytt: troféskåpet! Era titlar finns på översikten.', 'good');
   { const o = cupPlan().order; if ((!C.cup || C.cup.season !== C.season) && C.round >= cupRoundOf(o[0]) && C.round < cupRoundOf(o[1])) { startCup(); saveCareer(); } }
   if (!C.club.staff) { C.club.staff = {}; news('Nytt: fliken Personal. Anställ fysioterapeut, hjälptränare, scout och administratör när ni klättrar i divisionerna.', 'good'); }
@@ -204,8 +205,9 @@ ACTIONS.next = () => {
     </div>
     ${strengthBars(home, away)}
     <div><h3 style="font-size:17px" class="muted">Din startfemma · ${TACTIC_NAME[me.tactic]}</h3>
-    <div class="tablewrap"><table><tbody>${lu.map((p, i) => `<tr><td class="muted">${SLOT_NAME[SLOTS[i]]}</td><td>${p.num}</td><td>${esc(p.name)} ${traitBadges(p)}</td><td>${formDots(p.form)}</td><td class="num">${skCell(slotRating(p, SLOTS[i]))}</td></tr>`).join('')}</tbody></table></div></div>
+    <div class="tablewrap"><table><tbody>${lu.map((p, i) => `<tr><td class="muted">${SLOT_NAME[SLOTS[i]]}</td><td>${p.num}</td><td>${natFlag(p)}${esc(p.name)} ${traitBadges(p)}</td><td>${formDots(p.form)}</td><td class="num">${skCell(slotRating(p, SLOTS[i]))}</td></tr>`).join('')}</tbody></table></div></div>
     ${inj.length ? `<div class="bad">Skadade: ${inj.map(p => esc(p.name)).join(', ')}</div>` : ''}
+    ${me.players.some(p => p.away) ? `<div class="muted">🌍 I landslaget: ${me.players.filter(p => p.away).map(p => esc(p.name)).join(', ')}</div>` : ''}
     <div class="row"><button class="btn primary big" type="button" data-act="watch">Se matchen</button><button class="btn" type="button" data-act="sim">Simulera</button><button class="btn" type="button" data-act="lineupGo">Ändra laget</button></div>`);
 };
 ACTIONS.lineupGo = () => { closeModal(); show('lineup'); };
@@ -254,7 +256,19 @@ function reportHtml(r, meta) {
     <div class="tablewrap"><table><thead><tr><th>#</th><th>Spelare</th><th>Position</th><th>Mål</th><th class="num">Betyg</th></tr></thead><tbody>${rows}</tbody></table></div>`;
 }
 let pendingSeason = null;
-ACTIONS.reportDone = () => { closeModal(); if (pendingSeason) { const s = pendingSeason; pendingSeason = null; seasonModal(s); } };
+ACTIONS.reportDone = () => { closeModal(); if (pendingSeason) { const s = pendingSeason; pendingSeason = null; seasonModal(s); } else ntModal(); };
+// Landslagsuppehåll: visas en gång, direkt efter omgången då trupperna togs ut
+function ntModal() {
+  const n = C.nt; if (!n || n.seen || n.season !== C.season || n.round !== C.round) return;
+  n.seen = true; saveCareer();
+  const mineIds = new Set(n.mine.map(x => x.id));
+  modal(`<div class="eyebrow">🌍 Landslagsuppehåll</div><h2>${n.mine.length ? `${n.mine.length === 1 ? 'En spelare' : n.mine.length + ' spelare'} från er klubb är uttagna!` : 'Landslagen är uttagna'}</h2>
+    ${n.mine.length ? `<ul class="news">${n.mine.map(x => `<li class="good">${NATIONS[x.nat].flag} <b>${esc(x.name)}</b> – ${NATIONS[x.nat].gen} landslag</li>`).join('')}</ul>
+      <p style="margin:0">De missar de <b>${NT_MISS} kommande omgångarna</b>. Laguppställningen fylls i automatiskt – kontrollera den gärna. Landslagserfarenheten ger dem lite extra utveckling och höjer deras värde.</p>` : '<p class="muted" style="margin:0">Ingen från er klubb den här gången. Spelare kallas om de hör till de bästa i sitt land – i praktiken spelare med betyg runt 70 eller mer.</p>'}
+    <div><div class="muted" style="font-size:13px">🇸🇪 Sveriges trupp</div><div style="font-size:13px">${n.squad.map(x => `<span class="${mineIds.has(x.id) ? 'good' : ''}">${esc(x.name)} <small class="muted">(${esc(x.team)})</small></span>`).join(' · ')}</div></div>
+    <div><div class="muted" style="font-size:13px">Landskamper</div>${n.games.map(g => `<div>🇸🇪 Sverige – ${NATIONS[g.opp].flag} ${NATIONS[g.opp].name} <b>${g.gf}–${g.ga}</b>${g.sc.length ? ` <small class="muted">mål: ${g.sc.map(esc).join(', ')}</small>` : ''}</div>`).join('')}</div>
+    <div class="row">${n.mine.length ? '<button class="btn" type="button" data-act="lineupGo">Laguppställning</button>' : ''}<button class="btn primary" type="button" data-act="closeModal">Fortsätt</button></div>`);
+}
 function afterMatch(res, quick) {
   const { uf } = matchSides();
   const gf = uf.home ? res.hg : res.ag, ga = uf.home ? res.ag : res.hg, oppName = uf.opp.name;
@@ -269,7 +283,7 @@ function afterMatch(res, quick) {
     return;
   }
   toast(`${gf > ga ? 'Seger' : gf < ga ? 'Förlust' : 'Oavgjort'} ${gf}–${ga} mot ${oppName}.`, gf < ga);
-  if (summary) seasonModal(summary);
+  if (summary) seasonModal(summary); else ntModal();
 }
 // ===== Ligacupen =====
 const cupDivTag = id => `<small class="muted">div ${C.cup.div[id]}</small>`;
@@ -350,9 +364,9 @@ function teamModal(t) {
     <div class="row" style="gap:12px;flex-wrap:wrap;font-size:13px"><span class="muted">Taktik: <b>${TACTIC_NAME[t.tactic] || 'Balanserad'}</b></span><span class="muted">Arena: <b>${capacity(t.stadium).toLocaleString('sv-SE')}</b> platser</span>${formHtml ? `<span class="muted">Form: ${formHtml}</span>` : ''}${top && top.goals ? `<span class="muted">Bäste målskytt: <b>${esc(top.name)}</b> (${top.goals})</span>` : ''}</div>
     <div><div class="muted" style="font-size:13px">Startelva</div>
     <div class="tablewrap"><table><thead><tr><th>Position</th><th>#</th><th>Spelare</th><th class="num">Ålder</th><th>Form</th><th class="num">Mål</th><th class="num">Betyg</th></tr></thead><tbody>
-    ${lu.map((p, i) => `<tr><td class="muted">${SLOT_NAME[SLOTS[i]]}</td><td>${p.num}</td><td>${esc(p.name)} ${traitBadges(p)}</td><td class="num">${p.age}</td><td>${formDots(p.form)}</td><td class="num">${p.goals || 0}</td><td class="num">${skCell(slotRating(p, SLOTS[i]))}</td></tr>`).join('')}
+    ${lu.map((p, i) => `<tr><td class="muted">${SLOT_NAME[SLOTS[i]]}</td><td>${p.num}</td><td>${natFlag(p)}${esc(p.name)} ${traitBadges(p)}${p.caps ? ` <small class="muted" title="Landskamper">🌍${p.caps}</small>` : ''}</td><td class="num">${p.age}</td><td>${formDots(p.form)}</td><td class="num">${p.goals || 0}</td><td class="num">${skCell(slotRating(p, SLOTS[i]))}</td></tr>`).join('')}
     </tbody></table></div></div>
-    ${bench.length ? `<div style="font-size:13px"><span class="muted">Bänken:</span> ${bench.map(p => `${esc(p.name)} <small class="muted">${POS_NAME[p.pos]} ${disp(ovr(p))}</small>${p.inj ? ' <span class="tag inj">skadad</span>' : ''}`).join(' · ')}</div>` : ''}
+    ${bench.length ? `<div style="font-size:13px"><span class="muted">Bänken:</span> ${bench.map(p => `${natFlag(p)}${esc(p.name)} <small class="muted">${POS_NAME[p.pos]} ${disp(ovr(p))}</small>${p.inj ? ' <span class="tag inj">skadad</span>' : p.away ? ' <span class="tag">🌍 landslag</span>' : ''}`).join(' · ')}</div>` : ''}
     <div class="row">${t.user ? '<button class="btn" type="button" data-act="lineupGo">Ändra laguppställning</button>' : ''}<button class="btn primary" type="button" data-act="closeModal">Stäng</button></div>`);
 }
 ACTIONS.team = el => { const t = teamById(+el.dataset.id); if (t) teamModal(t); };
@@ -364,7 +378,7 @@ function calendarCard() {
   return `<div class="card"><h3>🗓️ Kalender</h3>
     <div class="cal">${ev.map((e, i) => `<div class="calrow ${e.kind}${i === 0 ? ' now' : ''}"${e.team ? ` data-act="team" data-id="${e.team}"` : ''}>
       <div class="cald"><b>${e.date.toLocaleDateString('sv-SE', { weekday: 'short' })}</b><span>${e.date.getDate()}/${e.date.getMonth() + 1}</span></div>
-      <div><div>${e.kind !== 'league' ? '🏆 ' : ''}${esc(e.text)}</div><small class="muted">${esc(e.sub)}</small></div></div>`).join('')}</div>
+      <div><div>${e.kind === 'nt' ? '🌍 ' : e.kind !== 'league' ? '🏆 ' : ''}${esc(e.text)}</div><small class="muted">${esc(e.sub)}</small></div></div>`).join('')}</div>
     <div class="muted" style="font-size:12px">Ligan spelas på lördagar, Ligacupen på onsdagar. Säsongen ${2025 + C.season} börjar ${fmtDate(seasonStart())}.</div>
   </div>`;
 }
@@ -460,7 +474,7 @@ SCREENS.squad = () => {
   <div class="card"><div class="tablewrap"><table>
     <thead><tr><th>#</th><th>Namn</th><th>Pos</th><th class="num">Ålder</th><th class="num">Betyg</th>${SKILLS.map(k => `<th class="num" title="${SKILL_NAME[k]}">${SKILL_ABBR[k]}</th>`).join('')}<th>Form</th><th class="num">Mål</th><th class="num">Snitt</th><th class="num">Värde</th><th class="num">Lön/v</th><th>Status</th></tr></thead>
     <tbody>${ps.map(p => `<tr class="click" data-act="player" data-id="${p.id}">
-      <td>${p.num}</td><td><b>${esc(p.name)}</b> ${traitBadges(p)}</td><td><span class="pos">${POS_NAME[p.pos]}</span></td><td class="num">${p.age}</td>
+      <td>${p.num}</td><td>${natFlag(p)}<b>${esc(p.name)}</b> ${traitBadges(p)}${p.caps ? ` <small class="muted" title="Landskamper">🌍${p.caps}</small>` : ''}</td><td><span class="pos">${POS_NAME[p.pos]}</span></td><td class="num">${p.age}</td>
       <td class="num">${skCell(ovr(p))}</td>${SKILLS.map(k => `<td class="num">${skCell(p.sk[k])}</td>`).join('')}
       <td>${formDots(p.form)}</td><td class="num">${p.goals}</td><td class="num">${p.apps ? (p.rsum / p.apps).toFixed(1) : '–'}</td>
       <td class="num">${money(playerValue(p))}</td><td class="num">${money(playerWage(p))}</td><td>${statusTags(p)}</td></tr>`).join('')}</tbody>
@@ -477,8 +491,9 @@ ACTIONS.player = el => {
   if (!p) return;
   const quick = Math.round(playerValue(p) * 0.6 / 500) * 500;
   const slot = POS_SLOT[p.pos];
-  modal(`<div class="spread"><div><div class="eyebrow">#${p.num} · ${POS_NAME[p.pos]} · ${p.age} år</div><h2>${esc(p.name)}</h2></div>${skCell(ovr(p))}</div>
+  modal(`<div class="spread"><div><div class="eyebrow">#${p.num} · ${POS_NAME[p.pos]} · ${p.age} år</div><h2>${natFlag(p)}${esc(p.name)}</h2></div>${skCell(ovr(p))}</div>
     <div class="row">${formDots(p.form)} <span class="muted">Form</span> ${statusTags(p)}</div>
+    <div class="muted" style="font-size:13px">${NATIONS[p.nat || 'SE'].flag} ${NATIONS[p.nat || 'SE'].name}${p.caps ? ` · <b>${p.caps} landskamper</b>${p.ntGoals ? `, ${p.ntGoals} mål` : ''}` : ''}</div>
     ${traitList(p)}
     ${p.awards && p.awards.length ? `<div class="good" style="font-size:14px">${p.awards.map(a => `${AWARD[a.type].icon} ${AWARD[a.type].name} säsong ${a.s}`).join(' · ')}</div>` : ''}
     ${skillBars(p)}

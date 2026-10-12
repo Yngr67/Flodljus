@@ -23,7 +23,7 @@ samma kod på en annan enhet så hämtas samma karriär.
 | Fil/mapp | Vad den gör |
 |---|---|
 | `flodljus-api/` | API-tjänsten: `GET`/`PUT`/`DELETE /api/save/<kod>` + `GET /api/health`. Skapar tabellen `saves` själv. Gräns: 5 MB per sparning. |
-| `flodljus-spel/` | Spelet (version 25) med spelarkod och serversparning. |
+| `flodljus-spel/` | Spelet (version 26 eller senare) med spelarkod och serversparning. |
 | `nginx/flodljus.conf` | Visar spelet och skickar `/api/` vidare till API:et, så att allt har samma adress. |
 | `docker-compose.flodljus.yml` | Raderna som ska in i din `docker-compose.yml`. |
 | `test-api.ps1` | Testar PUT/GET/DELETE och visar vad som ligger i databasen. |

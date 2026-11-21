@@ -1,0 +1,40 @@
+# Publicerar spelet på GitHub Pages varje gång main ändras.
+# Webbplatsen innehåller spelet och en zip-fil för datorn.
+name: Publicera spelet
+
+on:
+  push:
+    branches: [main]
+    paths: ['flodljus-spel/**', '.github/workflows/publicera.yml']
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: true
+
+jobs:
+  publicera:
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - uses: actions/checkout@v4
+      - name: Bygg webbplatsen och zip-filen
+        run: |
+          mkdir -p site zip/Flodljus-Manager
+          cp -r flodljus-spel/. site/
+          cp -r flodljus-spel/. zip/Flodljus-Manager/
+          cp LADDA-NER.txt "zip/Flodljus-Manager/LÄS MIG.txt"
+          (cd zip && zip -qr ../site/Flodljus-Manager.zip Flodljus-Manager)
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: site
+      - id: deployment
+        uses: actions/deploy-pages@v4

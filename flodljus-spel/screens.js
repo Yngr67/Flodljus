@@ -162,7 +162,11 @@ SCREENS.arena = () => {
   const pl = PRICE_LEVEL[cl.ticket];
   return `<div class="spread"><h2 style="font-size:40px">Arena</h2><button class="btn" type="button" data-act="tour">Visa arenan i 3D (träningsmatch)</button></div>
   <div class="grid">
-    <div class="card" style="grid-column:1/-1">${stadiumSvg(s)}</div>
+    <div class="card" style="grid-column:1/-1">
+      <figure class="arenapic" style="margin:0"><img src="${arenaImg(s)}" alt="Arenan: ${ARENA_NAMES[arenaStage(s)]}" width="1280" height="720">
+        <figcaption><b>${ARENA_NAMES[arenaStage(s)]}</b><span class="muted" style="font-size:13px">${arenaStage(s) < 6 ? `Nästa storlek vid ${ARENA_NEXT[arenaStage(s)].toLocaleString('sv-SE')} platser` : 'Största storleken'}${s.lights < 2 ? ' · kvällsbild med strålkastare nivå 2' : ''}</figcaption></figure>
+      <details><summary class="muted" style="cursor:pointer">Visa ritning med alla läktare</summary>${stadiumSvg(s)}</details>
+    </div>
     <div class="card"><h3>Kapacitet</h3>
       <div class="tablewrap"><table><thead><tr><th>Sektion</th><th class="num">Platser</th><th class="num">Biljettpris</th></tr></thead><tbody>
       ${rows.map(r => `<tr><td>${r[0]}</td><td class="num">${r[1].toLocaleString('sv-SE')}</td><td class="num">${money(r[2] * pl.mult)}</td></tr>`).join('')}

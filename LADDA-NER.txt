@@ -1,0 +1,12 @@
+FLODLJUS MANAGER – spela på datorn utan internet
+
+1. Packa upp zip-filen (högerklicka → "Extrahera alla").
+2. Öppna mappen Flodljus-Manager.
+3. Dubbelklicka på index.html. Spelet öppnas i din webbläsare.
+
+Karriären sparas i webbläsaren på den här datorn.
+Använd "Spara kopia till fil" på startskärmen för att göra en
+säkerhetskopia eller flytta karriären till en annan enhet.
+
+Flytta inte mappen efter att du har börjat spela – då hittar
+webbläsaren inte sparningen. Gör en säkerhetskopia först.

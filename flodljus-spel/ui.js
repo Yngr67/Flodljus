@@ -112,10 +112,71 @@ function renderStart(saved) {
       ${START.checking && !st ? '<p class="muted" style="margin:0">⏳ Letar efter din sparade karriär …</p>' : ''}
       <button class="btn ${st ? '' : 'primary big'}" type="button" data-act="newGame"${START.checking && !st ? ' disabled' : ''}>Starta karriär</button>
     </div>
+    ${installCard()}
+    ${backupCard(saved)}
     ${diagCard(saved)}
-    <div class="muted" style="font-size:12px">Version ${GAME_VERSION}</div>
+    <div class="muted" style="font-size:12px">Version ${GAME_VERSION}${App.offline ? ' · ✅ fungerar utan internet' : ''}</div>
   </div>`;
 }
+// ===== Fristående app: lägg spelet på hemskärmen eller installera det på datorn =====
+function installCard() {
+  if (App.standalone || App.framed) return '';
+  // Zip-filen finns bara på den publika webbplatsen (GitHub Pages)
+  const zip = /github\.io$/.test(location.hostname) && !App.ios ? '<a class="muted" style="font-size:13px" href="Flodljus-Manager.zip" download>Eller ladda ner spelet som zip-fil till datorn</a>' : '';
+  if (App.installEvt) return `<div class="card"><h3>📲 Installera spelet</h3>
+    <p class="muted" style="margin:0;font-size:14px">Få en egen ikon och spela utan internet.</p>
+    <button class="btn primary" type="button" data-act="install" style="align-self:flex-start">Installera</button>${zip}</div>`;
+  if (zip) return `<div class="card"><h3>💻 Spela på datorn</h3><p class="muted" style="margin:0;font-size:14px">I Chrome eller Edge kan du installera spelet som ett eget program: öppna sidan där och tryck på Installera.</p>${zip}</div>`;
+  if (App.ios) return `<div class="card"><h3>📲 Lägg spelet på hemskärmen</h3>
+    <ol class="steps"><li>Tryck på <b>Dela</b> (rutan med pilen uppåt) i Safari.</li><li>Välj <b>Lägg till på hemskärmen</b>.</li><li>Starta spelet från den nya ikonen.${App.secure ? ' Då fungerar det även utan internet.' : ''}</li></ol></div>`;
+  return '';
+}
+ACTIONS.install = async () => {
+  const e = App.installEvt;
+  if (!e) return;
+  e.prompt();
+  try { await e.userChoice; } catch (err) { /* avbrutet */ }
+  App.installEvt = null; renderStart(START.saved);
+};
+// ===== Säkerhetskopia: karriären som en fil =====
+function backupCard(saved) {
+  if (App.framed) return '';
+  return `<div class="card"><h3>💾 Säkerhetskopia</h3>
+    <p class="muted" style="margin:0;font-size:13px">Karriären sparas i den här enheten. Spara en kopia som fil då och då, eller för att flytta karriären till en annan enhet.</p>
+    <div class="row">${saved ? '<button class="btn sm" type="button" data-act="exportSave">Spara kopia till fil</button>' : ''}<button class="btn sm" type="button" data-act="importSave">Läs in kopia från fil</button></div>
+    <input id="importFile" type="file" accept=".json,application/json" hidden data-change="importPicked"></div>`;
+}
+ACTIONS.exportSave = () => {
+  const c = C || START.saved;
+  if (!c) return toast('Det finns ingen karriär att spara.', true);
+  const me = c.teams.find(t => t.user), name = (me ? me.name : 'karriar').toLowerCase().replace(/[^a-z0-9åäö]+/gi, '-').replace(/^-|-$/g, '');
+  const blob = new Blob([JSON.stringify(c)], { type: 'application/json' }), a = document.createElement('a');
+  a.href = URL.createObjectURL(blob); a.download = `flodljus-${name}-sasong-${c.season}.json`;
+  document.body.appendChild(a); a.click(); a.remove();
+  setTimeout(() => URL.revokeObjectURL(a.href), 10000);
+  toast('Kopian är sparad bland dina hämtade filer.');
+};
+ACTIONS.importSave = () => { const f = $('importFile'); if (f) { f.value = ''; f.click(); } };
+ACTIONS.importPicked = async el => {
+  const file = el.files && el.files[0];
+  if (!file) return;
+  let c = null;
+  try { c = JSON.parse(await file.text()); } catch (e) { c = null; }
+  if (!c || c.v !== 1 || !Array.isArray(c.teams) || !c.teams.some(t => t.user) || !c.club) return toast('Filen är inte en sparad Flodljus-karriär.', true);
+  const me = c.teams.find(t => t.user);
+  modal(`<div class="eyebrow">Säkerhetskopia</div><h2>Läs in ${esc(me.name)}?</h2>
+    <p style="margin:0">Säsong ${c.season} · division ${c.div}. ${START.saved ? '<b>Karriären som finns i den här enheten skrivs över.</b>' : ''}</p>
+    <div class="row"><button class="btn primary" type="button" data-act="importYes">Läs in</button><button class="btn" type="button" data-act="closeModal">Avbryt</button></div>`);
+  START.pending = c;
+};
+ACTIONS.importYes = () => {
+  const c = START.pending; START.pending = null; closeModal();
+  if (!c) return;
+  c.savedAt = Date.now();
+  try { localStorage.setItem(SAVE_KEY, JSON.stringify(c)); } catch (e) { return toast('Kunde inte spara i enheten – lagringen är full eller avstängd.', true); }
+  renderStart(c);
+  toast('Karriären är inläst. Tryck Fortsätt för att spela.');
+};
 // ===== Spelarkod: samma karriär på flera enheter (egen server) =====
 function codeCard() {
   if (Cloud.mode !== 'server') return '';
@@ -448,14 +509,14 @@ function calendarCard() {
 }
 // ===== Troféskåp =====
 const TROPHY = {
-  league: { icon: '🏆', cls: 'gold', title: 'Ligamästare' },
-  cup: { icon: '🏆', cls: 'silver', title: 'Ligacupen' },
-  div: { icon: '🥇', cls: 'bronze', title: 'Seriesegrar' },
+  league: { icon: '<img class="ti" src="img/trophy-cup.webp" alt="">', cls: 'gold', title: 'Ligamästare' },
+  cup: { icon: '<img class="ti" src="img/trophy-cup.webp" alt="">', cls: 'silver', title: 'Ligacupen' },
+  div: { icon: '<img class="ti" src="img/trophy-plate.webp" alt="">', cls: 'bronze', title: 'Seriesegrar' },
 };
 function trophyCabinet() {
   const tr = (C.trophies || []).slice().sort((a, b) => a.s - b.s);
   const big = tr.filter(t => t.kind !== 'div'), small = tr.filter(t => t.kind === 'div');
-  const item = t => `<div class="trophy ${TROPHY[t.kind].cls}" title="${esc(t.name)} säsong ${t.s}"><span class="ti">${TROPHY[t.kind].icon}</span><small>${t.kind === 'div' ? `Div ${t.div}` : t.kind === 'cup' ? 'Cupen' : 'Mästare'}<br>S${t.s}</small></div>`;
+  const item = t => `<div class="trophy ${TROPHY[t.kind].cls}" title="${esc(t.name)} säsong ${t.s}">${TROPHY[t.kind].icon}<small>${t.kind === 'div' ? `Div ${t.div}` : t.kind === 'cup' ? 'Cupen' : 'Mästare'}<br>S${t.s}</small></div>`;
   const count = k => tr.filter(t => t.kind === k).length;
   const best = (C.history || []).reduce((a, h) => (!a || h.div < a.div || (h.div === a.div && h.pos < a.pos) ? h : a), null);
   return `<div class="card cabinet" style="grid-column:1/-1"><div class="spread"><h3>🏆 Troféskåp</h3><span class="muted" style="font-size:13px">${count('league')} ${count('league') === 1 ? 'ligatitel' : 'ligatitlar'} · ${count('cup')} ${count('cup') === 1 ? 'cuptitel' : 'cuptitlar'} · ${count('div')} ${count('div') === 1 ? 'serieseger' : 'seriesegrar'}</span></div>
@@ -520,6 +581,7 @@ SCREENS.overview = () => {
       <div><div class="muted">Lagstyrka</div><b>${disp(teamStrength(me))}</b></div>
       <div><div class="muted">Veckolöner</div><b>${money(-weeklyBudget().wages)}</b></div>
       ${Cloud.mode === 'server' ? `<div style="grid-column:1/-1"><div class="muted">Spelarkod (för andra enheter)</div><b style="letter-spacing:.12em">${fmtCode(Cloud.uid)}</b></div>` : ''}
+      ${App.framed ? '' : '<div style="grid-column:1/-1"><button class="btn sm" type="button" data-act="exportSave">💾 Spara säkerhetskopia till fil</button></div>'}
     </div>
     <div><div class="spread muted" style="font-size:13px"><span>Supporterstämning</span><span>${moodName(cl.mood)}</span></div><div class="bar"><i style="width:${cl.mood}%;background:linear-gradient(90deg,#ff6b6b,#ffd66b,#6fd08c)"></i></div></div>
     ${cl.builds.length ? `<div class="muted">Byggen: ${cl.builds.map(b => `${BUILDS[b.key].name} (${b.left} v)`).join(', ')}</div>` : ''}

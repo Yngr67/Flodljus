@@ -864,6 +864,11 @@ function removePlayer(t, p) { t.players = t.players.filter(x => x !== p); t.line
 
 // ===== Ekonomi =====
 function capacity(s) { return s.standing + s.seated + s.covered + s.vip; }
+// Arenabilden (renderad i Blender): sex storlekar, i dagsljus eller under strålkastarna (nivå 2+)
+const ARENA_NAMES = ['', 'Bollplan', 'Idrottsplats', 'Liten arena', 'Arena', 'Stor arena', 'Storarena'];
+function arenaStage(s) { const c = capacity(s); return c >= 18000 ? 6 : c >= 10000 || s.tier ? 5 : c >= 6000 ? 4 : c >= 3500 ? 3 : c >= 2000 ? 2 : 1; }
+function arenaImg(s) { return `img/arena-${arenaStage(s)}-${s.lights >= 2 ? 'night' : 'day'}.webp`; }
+const ARENA_NEXT = [0, 2000, 3500, 6000, 10000, 18000];
 function attendance(team, opp) {
   const s = team.stadium;
   if (!team.user) { const cap = capacity(s); const n = Math.round(cap * rnd(0.5, 0.95)); return { total: n, cap, sec: null }; }
